@@ -38,6 +38,7 @@ jobs:
 
       - name: Commit and push updated logs
         run: |
+          mkdir -p logs
           git config user.name "stock-news-bot"
           git config user.email "actions@github.com"
           git add logs/
