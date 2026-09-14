@@ -17,7 +17,7 @@ import requests
 
 from config import RSS_FEEDS, SEC_EDGAR_RSS, SEC_USER_AGENT
 
-REQUEST_TIMEOUT = 10
+REQUEST_TIMEOUT = 25
 
 
 def _parse_feed_entries(feed_url: str, source_name: str) -> list[dict]:

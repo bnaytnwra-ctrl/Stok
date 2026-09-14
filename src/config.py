@@ -39,10 +39,10 @@ POLL_INTERVAL_SECONDS = 7
 # مصادر الأخبار (RSS مجانية)
 # ---------------------------------------------------------------------------
 RSS_FEEDS = {
-    "globenewswire": "https://www.globenewswire.com/rss-feed/organization",
     "prnewswire": "https://www.prnewswire.com/rss/news-releases-list.rss",
     "businesswire": "https://feed.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFpVAg==",
-    "accesswire": "https://www.accesswire.com/rss/newsroom",
+    "globenewswire": "https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20about%20Public%20Companies",
+    "newsfile": "https://feeds.newsfilecorp.com/global/Last25Stories",
 }
 
 # SEC EDGAR يشترط User-Agent يحتوي على معلومات تواصل حقيقية (اسم/بريد)
