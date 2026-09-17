@@ -62,14 +62,16 @@ def _log_alert(ticker, title, price, source, link, score):
         )
 
 
-def process_one_pass(store: SeenNewsStore):
+def process_one_pass(store: SeenNewsStore, stats: dict):
     """فحص واحد لكل المصادر، وإرسال تنبيهات للأخبار الجديدة المطابقة."""
     all_news = fetch_all_news() + fetch_sec_edgar()
+    stats["fetched"] += len(all_news)
 
     for item in all_news:
         news_id = item["id"]
         if not store.is_new(news_id):
             continue
+        stats["new"] += 1
 
         # نعتبر الخبر "مُعالَجًا" فور فحصه (سواء طابق الفلاتر أم لا) لتجنب إعادة فحصه
         store.mark_seen(news_id)
@@ -78,23 +80,33 @@ def process_one_pass(store: SeenNewsStore):
 
         passed_keywords, score, matched = passes_keyword_filter(full_text)
         if not passed_keywords:
+            stats["failed_keywords"] += 1
             continue
+        stats["passed_keywords"] += 1
 
         ticker = extract_ticker(full_text)
         if not ticker:
+            stats["failed_ticker"] += 1
+            print(f"[main] رفض (بلا رمز سهم): {item['title'][:80]}")
             continue
+        stats["passed_ticker"] += 1
 
         in_range, price = is_price_in_range(ticker)
         if not in_range:
+            stats["failed_price"] += 1
+            print(f"[main] رفض (سعر غير مؤكد/خارج النطاق) {ticker}: {item['title'][:80]}")
             continue
+        stats["passed_price"] += 1
 
         if ENABLE_VOLUME_SPIKE_FILTER and not has_volume_spike(ticker):
+            stats["failed_volume"] += 1
             continue
 
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         message = format_alert_message(ticker, item["title"], price, item["link"], timestamp)
         send_telegram_message(message)
         _log_alert(ticker, item["title"], price, item["source"], item["link"], score)
+        stats["alerts_sent"] += 1
         print(f"[main] تم إرسال تنبيه: {ticker} - {item['title']} (نقاط: {score})")
 
 
@@ -109,10 +121,22 @@ def run():
     print(f"[main] بدء المراقبة ضمن نافذة '{window_name}' حتى {window_end.isoformat()} UTC")
 
     store = SeenNewsStore()
+    stats = {
+        "fetched": 0,
+        "new": 0,
+        "passed_keywords": 0,
+        "failed_keywords": 0,
+        "passed_ticker": 0,
+        "failed_ticker": 0,
+        "passed_price": 0,
+        "failed_price": 0,
+        "failed_volume": 0,
+        "alerts_sent": 0,
+    }
 
     try:
         while datetime.now(timezone.utc) <= window_end:
-            process_one_pass(store)
+            process_one_pass(store, stats)
             time.sleep(POLL_INTERVAL_SECONDS)
     except Exception:  # noqa: BLE001 - نريد تسجيل أي خطأ غير متوقع وتبليغ المطور
         error_text = traceback.format_exc()
@@ -120,6 +144,18 @@ def run():
         send_error_alert(error_text[-500:])  # آخر 500 حرف كافية للتشخيص السريع
     finally:
         store.save()
+        print(
+            "[main] ملخص التشغيلة: "
+            f"إجمالي مرات الجلب={stats['fetched']}, "
+            f"أخبار جديدة فريدة={stats['new']}, "
+            f"عبرت الكلمات المفتاحية={stats['passed_keywords']} "
+            f"(رفضت={stats['failed_keywords']}), "
+            f"وُجد لها رمز سهم={stats['passed_ticker']} "
+            f"(بلا رمز={stats['failed_ticker']}), "
+            f"سعرها بالنطاق={stats['passed_price']} "
+            f"(رفضت بالسعر={stats['failed_price']}), "
+            f"تنبيهات أُرسلت={stats['alerts_sent']}"
+        )
         print("[main] انتهت النافذة أو توقف التشغيل، تم حفظ سجل الأخبار المُعالَجة.")
 
 
