@@ -40,6 +40,7 @@ def process_one_pass(store,stats):
         ok,score,matched=passes_keyword_filter(text)
         if not ok:
             stats['keyword_rejected']+=1
+            print('[FILTER] رفض | score='+str(score)+' | matched='+', '.join(matched)+' | '+item.get('title','')[:220])
             continue
         stats['keyword_pass']+=1
         ticker=extract_ticker(text)
