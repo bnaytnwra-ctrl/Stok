@@ -5,7 +5,7 @@ import requests
 import re
 import html
 from urllib.parse import urljoin
-from config import RSS_FEEDS, SEC_EDGAR_RSS, SEC_USER_AGENT
+from config import RSS_FEEDS, SEC_EDGAR_RSS, SEC_EDGAR_RSS_FALLBACK, SEC_USER_AGENT, SEC_REQUEST_TIMEOUT
 
 REQUEST_TIMEOUT = 25
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
@@ -144,13 +144,30 @@ def fetch_all_news() -> list[dict]:
 
 
 def fetch_sec_edgar() -> list[dict]:
-    try:
-        response = requests.get(SEC_EDGAR_RSS, headers={"User-Agent": SEC_USER_AGENT}, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-        parsed = feedparser.parse(response.content)
-    except Exception as exc:
-        print(f"[news_sources] تعذّر جلب SEC EDGAR: {exc}")
+    parsed = None
+    last_error = None
+    for url in (SEC_EDGAR_RSS, SEC_EDGAR_RSS_FALLBACK):
+        for attempt in range(2):
+            try:
+                response = requests.get(
+                    url,
+                    headers={"User-Agent": SEC_USER_AGENT, "Accept": "application/atom+xml,application/xml,text/xml;q=0.9,*/*;q=0.8"},
+                    timeout=SEC_REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
+                parsed = feedparser.parse(response.content)
+                if parsed.entries:
+                    break
+            except Exception as exc:
+                last_error = exc
+        if parsed is not None and parsed.entries:
+            print(f"[news_sources] SEC feed OK | entries={len(parsed.entries)} | url={url}")
+            break
+
+    if parsed is None or not parsed.entries:
+        print(f"[news_sources] تعذّر جلب SEC EDGAR بعد المحاولات: {last_error}")
         return []
+
     entries = []
     for entry in parsed.entries:
         entry_id = entry.get("id") or entry.get("link")
