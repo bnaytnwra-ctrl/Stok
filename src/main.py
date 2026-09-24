@@ -154,8 +154,10 @@ def run():
         print(err)
         send_error_alert(err)
     finally:
-        if retest_sec:
+        if retest_sec and stats.get('sec_retested', 0) > 0:
             _mark_sec_retest_done()
+        elif retest_sec:
+            print('[main] لم تصل إيداعات SEC؛ لن نستهلك علامة إعادة الاختبار')
         store.save()
         print('[main] ملخص:',stats)
 
