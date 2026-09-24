@@ -9,7 +9,6 @@ from news_sources import fetch_all_news,fetch_sec_edgar
 from price_filter import is_price_in_range
 from telegram_bot import format_alert_message,send_error_alert,send_telegram_message
 from ticker_extractor import extract_ticker
-
 from volume_filter import has_volume_spike
 
 def _current_window_end(now):
@@ -36,17 +35,20 @@ def process_one_pass(store,stats):
         if not store.is_new(item['id']):
             stats['duplicates']+=1
             continue
+
         text=(item.get('title','')+' '+item.get('summary','')).strip()
         ok,score,matched=passes_keyword_filter(text)
         if not ok:
             stats['keyword_rejected']+=1
             print('[FILTER] رفض | score='+str(score)+' | matched='+', '.join(matched)+' | '+item.get('title','')[:220])
             continue
+
         stats['keyword_pass']+=1
         ticker=extract_ticker(text)
         if not ticker:
             stats['ticker_rejected']+=1
             continue
+
         stats['ticker_pass']+=1
         in_range,price=is_price_in_range(ticker)
         if not in_range:
@@ -54,23 +56,41 @@ def process_one_pass(store,stats):
             print('[main] مرشح '+ticker+' مستبعد سعرياً: $'+str(price))
             store.mark_seen(item['id'])
             continue
+
         stats['price_pass']+=1
         print('[main] مرشح مؤهل: '+ticker+' $'+str(price)+' | score='+str(score))
+
         if ENABLE_VOLUME_SPIKE_FILTER and not has_volume_spike(ticker):
             stats['volume_rejected']+=1
             store.mark_seen(item['id'])
             continue
-        stats['translation_attempts']+=1
-        title_ar,summary_ar=translate_news(item.get('title',''),item.get('summary',''))
-        if not summary_ar:
-            stats['translation_failed']+=1
-            print('[main] فشل ترجمة المرشح '+ticker+' - سيعاد في الفحص القادم')
-            continue
-        stats['translated']+=1
-        msg=format_alert_message(ticker,item.get('title',''),summary_ar,item.get('published',''),price,item.get('link',''),item.get('source',''),score)
+
+        # الترجمة معطلة مؤقتاً لاختبار وصول التنبيهات عبر Telegram.
+        # نرسل العنوان والملخص الأصليين، وبعد ثبات الإرسال نعيد الترجمة العربية.
+        original_title=item.get('title','')
+        original_summary=item.get('summary','')
+        msg=format_alert_message(
+            ticker,
+            original_title,
+            original_summary,
+            item.get('published',''),
+            price,
+            item.get('link',''),
+            item.get('source',''),
+            score
+        )
+
         if send_telegram_message(msg):
             store.mark_seen(item['id'])
-            _log(ticker,title_ar or item.get('title',''),price,item.get('source',''),item.get('link',''),score,item.get('published',''))
+            _log(
+                ticker,
+                original_title,
+                price,
+                item.get('source',''),
+                item.get('link',''),
+                score,
+                item.get('published','')
+            )
             stats['alerts_sent']+=1
             print('[main] تم إرسال التنبيه: '+ticker)
         else:
@@ -83,8 +103,23 @@ def run():
     if end is None and not force_scan:
         print('[main] خارج نافذة التشغيل.')
         return
+
     store=SeenNewsStore()
-    stats={'fetched':0,'new':0,'duplicates':0,'keyword_pass':0,'keyword_rejected':0,'ticker_pass':0,'ticker_rejected':0,'price_pass':0,'price_rejected':0,'volume_rejected':0,'alerts_sent':0,'telegram_failed':0}
+    stats={
+        'fetched':0,
+        'new':0,
+        'duplicates':0,
+        'keyword_pass':0,
+        'keyword_rejected':0,
+        'ticker_pass':0,
+        'ticker_rejected':0,
+        'price_pass':0,
+        'price_rejected':0,
+        'volume_rejected':0,
+        'alerts_sent':0,
+        'telegram_failed':0
+    }
+
     try:
         if force_scan:
             print('[main] فحص يدوي مباشر')
@@ -101,4 +136,5 @@ def run():
         store.save()
         print('[main] ملخص:',stats)
 
-if __name__=='__main__': run()
+if __name__=='__main__':
+    run()
