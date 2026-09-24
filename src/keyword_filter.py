@@ -14,6 +14,7 @@ def passes_keyword_filter(text: str):
     domain_ok = any(k.lower() in lowered for k in DOMAIN_KEYWORDS)
     strong_ok = any(k.lower() in lowered for k in STRONG_CATALYST_KEYWORDS)
     upcoming_ok = any(k.lower() in lowered for k in UPCOMING_CATALYST_KEYWORDS)
-    # نريد محفزاً قابلاً للمتابعة للأيام القادمة، وليس مجرد خبر نتيجة حدث اليوم.
-    future_context = upcoming_ok or any(k.lower() in lowered for k in ('pdufa','adcom','action date','decision date','data readout','results expected'))
-    return score >= POSITIVE_SCORE_THRESHOLD and (domain_ok or strong_ok) and future_context, score, matched
+    # لا نشترط وجود كلمة future/upcoming لأن كثيراً من البيانات الصحفية تعلن
+    # الموعد أو المحفز بصياغة مختلفة. نستبعد فقط الأخبار التي هي نتيجة فاشلة بوضوح.
+    hard_negative = any(k.lower() in lowered for k in ('bankruptcy','chapter 11','delisting','clinical trial failed','failed primary endpoint'))
+    return score >= POSITIVE_SCORE_THRESHOLD and (domain_ok or strong_ok) and not hard_negative, score, matched
