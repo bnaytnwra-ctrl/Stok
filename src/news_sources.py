@@ -51,10 +51,20 @@ def _ticker_from_sec_entry(entry):
 
 
 def _html_to_text(content):
-    content = re.sub(r"<(script|style|noscript)[^>]*>.*?</\\1>", " ", content, flags=re.I | re.S)
+    content = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", " ", content, flags=re.I | re.S)
     content = re.sub(r"<[^>]+>", " ", content)
     return re.sub(r"\s+", " ", html.unescape(content)).strip()
 
+
+def _sec_text_score(text):
+    t = (text or "").lower()
+    keys = (
+        "fda", "pdufa", "clinical trial", "clinical study", "topline",
+        "data readout", "primary endpoint", "patient", "enrollment",
+        "dose", "dosing", "phase 1", "phase 2", "phase 3", "regulatory",
+        "advisory committee", "nda", "bla", "breakthrough therapy",
+    )
+    return sum(t.count(k) for k in keys)
 
 def _fetch_sec_filing_text(entry):
     link = entry.get("link", "") or ""
