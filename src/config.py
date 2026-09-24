@@ -34,7 +34,7 @@ POSITIVE_KEYWORDS = {
     "primary endpoint": 5, "endpoint": 3, "nda": 5, "bla": 5, "snda": 5,
     "new drug application": 5, "biologics license application": 5,
     "regulatory decision": 5, "regulatory milestone": 5,
-    "clinical hold": 4, "partnership": 3, "licensing agreement": 4,
+    "clinical hold": 4, "clinical update": 4, "clinical milestone": 5, "clinical-stage": 4, "drug candidate": 4, "dosing": 4, "dose escalation": 5, "patient enrollment": 4, "patients enrolled": 4, "interim data": 5, "study data": 4, "clinical data": 5, "trial data": 5, "protocol amendment": 4, "partnership": 3, "licensing agreement": 4,
     "strategic collaboration": 3, "breakthrough therapy": 6,
     "fast track": 4, "orphan drug": 4, "patent": 2, "readout": 5, "data readout": 6, "data": 2, "patient dosed": 4, "first patient": 4, "enrollment": 3, "protocol": 3, "study completion": 4, "last patient": 4, "milestone": 3,
 }
@@ -49,7 +49,7 @@ DOMAIN_KEYWORDS = {
     "biotech", "biotechnology", "biopharma", "pharma", "pharmaceutical",
     "clinical", "fda", "pdufa", "drug", "therapy", "therapeutic",
     "oncology", "cancer", "rare disease", "gene therapy", "cell therapy",
-    "medical", "healthcare", "biologics", "nda", "bla", "adcom",
+    "medical", "healthcare", "biologics", "therapeutics", "therapeutics", "biosciences", "pharmaceuticals", "pharmaceutical", "clinical-stage", "drug candidate", "nda", "bla", "adcom",
 }
 UPCOMING_CATALYST_KEYWORDS = {
     "upcoming", "expected", "scheduled", "set for", "anticipated", "will announce",
@@ -59,7 +59,7 @@ UPCOMING_CATALYST_KEYWORDS = {
 }
 STRONG_CATALYST_KEYWORDS = {
     "fda approval", "fda clearance", "pdufa", "advisory committee", "adcom",
-    "phase 3", "phase 2", "topline results", "primary endpoint", "readout", "data readout", "topline results",
+    "phase 3", "phase 2", "topline results", "primary endpoint", "readout", "data readout", "topline results", "clinical data", "interim data", "trial data",
     "nda", "bla", "snda", "regulatory decision", "breakthrough therapy", "patient dosed", "study completion", "milestone",
 }
 ENABLE_VOLUME_SPIKE_FILTER = False
