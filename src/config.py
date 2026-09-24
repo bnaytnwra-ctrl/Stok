@@ -36,7 +36,7 @@ POSITIVE_KEYWORDS = {
     "regulatory decision": 5, "regulatory milestone": 5,
     "clinical hold": 4, "partnership": 3, "licensing agreement": 4,
     "strategic collaboration": 3, "breakthrough therapy": 6,
-    "fast track": 4, "orphan drug": 4, "patent": 2,
+    "fast track": 4, "orphan drug": 4, "patent": 2, "readout": 5, "data readout": 6, "data": 2, "patient dosed": 4, "first patient": 4, "enrollment": 3, "protocol": 3, "study completion": 4, "last patient": 4, "milestone": 3,
 }
 NEGATIVE_KEYWORDS = {
     "bankruptcy": -8, "chapter 11": -8, "delisting": -7, "dilution": -5,
@@ -55,12 +55,12 @@ UPCOMING_CATALYST_KEYWORDS = {
     "upcoming", "expected", "scheduled", "set for", "anticipated", "will announce",
     "data readout", "readout expected", "results expected", "results will be",
     "pdufa date", "action date", "decision date", "adcom date", "meeting date",
-    "conference call", "presentation", "to present", "will present", "plans to present"
+    "conference call", "presentation", "to present", "will present", "plans to present", "fourth quarter", "q4 2026", "q3 2026", "next week", "tomorrow", "this month"
 }
 STRONG_CATALYST_KEYWORDS = {
     "fda approval", "fda clearance", "pdufa", "advisory committee", "adcom",
-    "phase 3", "phase 2", "topline results", "primary endpoint",
-    "nda", "bla", "snda", "regulatory decision", "breakthrough therapy",
+    "phase 3", "phase 2", "topline results", "primary endpoint", "readout", "data readout", "topline results",
+    "nda", "bla", "snda", "regulatory decision", "breakthrough therapy", "patient dosed", "study completion", "milestone",
 }
 ENABLE_VOLUME_SPIKE_FILTER = False
 VOLUME_SPIKE_MULTIPLIER = 3.0
