@@ -63,4 +63,4 @@ VOLUME_SPIKE_MULTIPLIER = 3.0
 LOG_CSV_PATH = "logs/alerts_log.csv"
 SEEN_IDS_PATH = "logs/seen_ids.json"
 SEEN_IDS_RETENTION_DAYS = 30
-SEC_RETEST_MARKER_PATH = "logs/sec_retest_v4.done"
+SEC_RETEST_MARKER_PATH = "logs/sec_retest_v5.done"
