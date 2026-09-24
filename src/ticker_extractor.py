@@ -31,6 +31,10 @@ def extract_ticker(text: str) -> str | None:
     if match:
         return match.group(1).upper()
 
+    loose = re.search(r'\b(?:NASDAQ|NYSE|AMEX|OTC)\s*[:\-]\s*([A-Z]{1,6})\b', text, re.I)
+    if loose:
+        return loose.group(1).upper()
+
     match = FALLBACK_PATTERN.search(text)
     if match:
         return match.group(1).upper()
