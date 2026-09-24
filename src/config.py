@@ -51,6 +51,12 @@ DOMAIN_KEYWORDS = {
     "oncology", "cancer", "rare disease", "gene therapy", "cell therapy",
     "medical", "healthcare", "biologics", "nda", "bla", "adcom",
 }
+UPCOMING_CATALYST_KEYWORDS = {
+    "upcoming", "expected", "scheduled", "set for", "anticipated", "will announce",
+    "data readout", "readout expected", "results expected", "results will be",
+    "pdufa date", "action date", "decision date", "adcom date", "meeting date",
+    "conference call", "presentation", "to present", "will present", "plans to present"
+}
 STRONG_CATALYST_KEYWORDS = {
     "fda approval", "fda clearance", "pdufa", "advisory committee", "adcom",
     "phase 3", "phase 2", "topline results", "primary endpoint",
