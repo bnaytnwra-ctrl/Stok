@@ -8,6 +8,7 @@ from keyword_filter import passes_keyword_filter
 from news_sources import fetch_all_news,fetch_sec_edgar
 from price_filter import is_price_in_range
 from telegram_bot import format_alert_message,send_error_alert,send_telegram_message
+from translator import translate_news
 from ticker_extractor import extract_ticker
 from volume_filter import has_volume_spike
 
@@ -40,13 +41,15 @@ def process_one_pass(store,stats):
         ok,score,matched=passes_keyword_filter(text)
         if not ok:
             stats['keyword_rejected']+=1
+            store.mark_seen(item['id'])
             print('[FILTER] رفض | score='+str(score)+' | matched='+', '.join(matched)+' | '+item.get('title','')[:220])
             continue
 
         stats['keyword_pass']+=1
-        ticker=extract_ticker(text)
+        ticker=item.get('ticker') or extract_ticker(text)
         if not ticker:
             stats['ticker_rejected']+=1
+            store.mark_seen(item['id'])
             continue
 
         stats['ticker_pass']+=1
@@ -65,14 +68,15 @@ def process_one_pass(store,stats):
             store.mark_seen(item['id'])
             continue
 
-        # الترجمة معطلة مؤقتاً لاختبار وصول التنبيهات عبر Telegram.
-        # نرسل العنوان والملخص الأصليين، وبعد ثبات الإرسال نعيد الترجمة العربية.
         original_title=item.get('title','')
         original_summary=item.get('summary','')
+        translated_title, translated_summary = translate_news(original_title, original_summary)
+        title_for_alert = translated_title or original_title
+        summary_for_alert = translated_summary or original_summary
         msg=format_alert_message(
             ticker,
-            original_title,
-            original_summary,
+            title_for_alert,
+            summary_for_alert,
             item.get('published',''),
             price,
             item.get('link',''),
