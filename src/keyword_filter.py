@@ -58,8 +58,8 @@ def passes_keyword_filter(text: str):
     # لا نُشترط upcoming_ok حالياً حتى لا نُسقط البيانات الصحفية التي تعلن
     # المحفز بصياغة مستقبلية مختلفة. سنشدد على "المحفزات القادمة" بعد ثبات المسار.
     return (
-        score >= POSITIVE_SCORE_THRESHOLD
-        and (domain_ok or strong_ok)
+        (score >= POSITIVE_SCORE_THRESHOLD or strong_ok or upcoming_ok)
+        and (domain_ok or strong_ok or upcoming_ok)
         and not hard_negative
         and not litigation_negative
     ), score, matched
