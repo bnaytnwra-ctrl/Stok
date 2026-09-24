@@ -2,7 +2,7 @@
 import csv, os, sys, time, traceback
 from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(__file__))
-from config import LOG_CSV_PATH,POLL_INTERVAL_SECONDS,WINDOWS_UTC,ENABLE_VOLUME_SPIKE_FILTER
+from config import LOG_CSV_PATH,POLL_INTERVAL_SECONDS,WINDOWS_UTC,ENABLE_VOLUME_SPIKE_FILTER,SEC_RETEST_MARKER_PATH
 from dedup import SeenNewsStore
 from keyword_filter import passes_keyword_filter
 from news_sources import fetch_all_news,fetch_sec_edgar
@@ -29,14 +29,26 @@ def _log(ticker,title,price,source,link,score,published):
             w.writerow(['timestamp_utc','ticker','title_ar','price','source','link','score','published'])
         w.writerow([datetime.now(timezone.utc).isoformat(),ticker,title,price,source,link,score,published])
 
-def process_one_pass(store,stats):
+def _sec_retest_enabled():
+    return not os.path.exists(SEC_RETEST_MARKER_PATH)
+
+def _mark_sec_retest_done():
+    os.makedirs(os.path.dirname(SEC_RETEST_MARKER_PATH),exist_ok=True)
+    with open(SEC_RETEST_MARKER_PATH,'w',encoding='utf-8') as f:
+        f.write(datetime.now(timezone.utc).isoformat())
+
+def process_one_pass(store,stats,retest_sec=False):
     items=fetch_all_news()+fetch_sec_edgar()
     stats['fetched']+=len(items)
     for item in items:
-        if not store.is_new(item['id']):
+        is_sec_retest = retest_sec and item.get('source') == 'sec_edgar' and item['id'] in store._seen
+        if not store.is_new(item['id']) and not is_sec_retest:
             stats['duplicates']+=1
             continue
 
+        if is_sec_retest:
+            stats.setdefault('sec_retested',0)
+            stats['sec_retested']+=1
         stats['new']+=1
         text=(item.get('title','')+' '+item.get('summary','')+' '+item.get('sec_text','')).strip()
         ok,score,matched=passes_keyword_filter(text)
@@ -110,6 +122,9 @@ def run():
         return
 
     store=SeenNewsStore()
+    retest_sec=_sec_retest_enabled()
+    if retest_sec:
+        print('[main] إعادة اختبار إيداعات SEC القديمة مرة واحدة بعد تحديث محلل SEC')
     stats={
         'fetched':0,
         'new':0,
@@ -122,13 +137,14 @@ def run():
         'price_rejected':0,
         'volume_rejected':0,
         'alerts_sent':0,
-        'telegram_failed':0
+        'telegram_failed':0,
+        'sec_retested':0
     }
 
     try:
         if force_scan:
             print('[main] فحص يدوي مباشر')
-            process_one_pass(store,stats)
+            process_one_pass(store,stats,retest_sec=retest_sec)
         else:
             while datetime.now(timezone.utc)<=end:
                 process_one_pass(store,stats)
@@ -138,6 +154,8 @@ def run():
         print(err)
         send_error_alert(err)
     finally:
+        if retest_sec:
+            _mark_sec_retest_done()
         store.save()
         print('[main] ملخص:',stats)
 
