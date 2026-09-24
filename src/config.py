@@ -18,7 +18,9 @@ RSS_FEEDS = {
     "newsfile": "https://feeds.newsfilecorp.com/global/Last25Stories",
 }
 SEC_USER_AGENT = "StockNewsBot admin@example.com"
-SEC_EDGAR_RSS = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=100&output=atom"
+SEC_EDGAR_RSS = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&owner=include&count=100&output=atom"
+SEC_EDGAR_RSS_FALLBACK = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&owner=include&count=40&output=atom"
+SEC_REQUEST_TIMEOUT = 60
 POSITIVE_KEYWORDS = {
     "fda approval": 7, "fda clearance": 7, "fda": 4, "pdufa": 7, "advisory committee": 7, "adcom": 7,
     "phase 3": 6, "phase 2": 5, "phase 1": 4, "clinical trial": 4, "clinical study": 4,
