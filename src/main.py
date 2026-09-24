@@ -37,7 +37,8 @@ def process_one_pass(store,stats):
             stats['duplicates']+=1
             continue
 
-        text=(item.get('title','')+' '+item.get('summary','')).strip()
+        stats['new']+=1
+        text=(item.get('title','')+' '+item.get('summary','')+' '+item.get('sec_text','')).strip()
         ok,score,matched=passes_keyword_filter(text)
         if not ok:
             stats['keyword_rejected']+=1
