@@ -53,7 +53,7 @@ def _ticker_from_sec_entry(entry):
 def _html_to_text(content):
     content = re.sub(r"<(script|style|noscript)[^>]*>.*?</\\1>", " ", content, flags=re.I | re.S)
     content = re.sub(r"<[^>]+>", " ", content)
-    return re.sub(r"\\s+", " ", html.unescape(content)).strip()
+    return re.sub(r"\s+", " ", html.unescape(content)).strip()
 
 
 def _fetch_sec_filing_text(entry):
@@ -67,7 +67,7 @@ def _fetch_sec_filing_text(entry):
         response.raise_for_status()
         index_text = response.text
         candidates = []
-        for href, anchor in re.findall(r'href=["\\\']([^"\\\']+\\.html?)["\\\'][^>]*>(.*?)</a>', index_text, flags=re.I | re.S):
+        for href, anchor in re.findall(r'href=["\']([^"\']+\.html?)["\'][^>]*>(.*?)</a>', index_text, flags=re.I | re.S):
             full = urljoin(link, html.unescape(href))
             low = full.lower()
             if "-index." in low or "ixviewer" in low or "xsl" in low:
