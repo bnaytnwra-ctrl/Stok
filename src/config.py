@@ -8,7 +8,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 
 MIN_PRICE = 0.10
-MAX_PRICE = 5.00
+MAX_PRICE = 4.00
 
 # مرتان يوميًا بتوقيت السعودية (UTC+3). لا نغيّر بنية GitHub Actions.
 WINDOWS_UTC = [
