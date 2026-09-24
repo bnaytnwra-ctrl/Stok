@@ -14,10 +14,35 @@
 
 import feedparser
 import requests
+import re
 
 from config import RSS_FEEDS, SEC_EDGAR_RSS, SEC_USER_AGENT
 
 REQUEST_TIMEOUT = 25
+
+SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
+_SEC_TICKER_MAP = None
+
+def _load_sec_ticker_map():
+    global _SEC_TICKER_MAP
+    if _SEC_TICKER_MAP is not None:
+        return _SEC_TICKER_MAP
+    try:
+        r = requests.get(SEC_TICKERS_URL, headers={"User-Agent": SEC_USER_AGENT}, timeout=REQUEST_TIMEOUT)
+        r.raise_for_status()
+        data = r.json()
+        _SEC_TICKER_MAP = {str(v["cik_str"]).zfill(10): str(v["ticker"]).upper()
+                           for v in data.values() if v.get("cik_str") and v.get("ticker")}
+    except Exception as exc:
+        print(f"[news_sources] SEC ticker map failed: {exc}")
+        _SEC_TICKER_MAP = {}
+    return _SEC_TICKER_MAP
+
+def _ticker_from_sec_entry(entry):
+    title = entry.get("title", "") or ""
+    m = re.search(r"\((\d{7,10})\)", title)
+    return _load_sec_ticker_map().get(m.group(1).zfill(10)) if m else None
+
 
 
 def _parse_feed_entries(feed_url: str, source_name: str) -> list[dict]:
@@ -91,6 +116,7 @@ def fetch_sec_edgar() -> list[dict]:
                 "link": entry.get("link", ""),
                 "source": "sec_edgar",
                 "published": entry.get("updated", entry.get("published", "")),
+                "ticker": _ticker_from_sec_entry(entry),
             }
         )
     return entries
