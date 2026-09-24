@@ -9,7 +9,14 @@ def send_telegram_message(text):
         print('[telegram_bot] بيانات Telegram غير مكتملة.'); return False
     try:
         r=requests.post('https://api.telegram.org/bot'+TELEGRAM_BOT_TOKEN+'/sendMessage',json={'chat_id':TELEGRAM_CHAT_ID,'text':text,'parse_mode':'HTML','disable_web_page_preview':False},timeout=10)
-        r.raise_for_status(); return True
+        if not r.ok:
+            print('[telegram_bot] HTTP', r.status_code, r.text[:1000])
+            return False
+        data=r.json()
+        if not data.get('ok', False):
+            print('[telegram_bot] API', data)
+            return False
+        return True
     except Exception as exc:
         print(f'[telegram_bot] فشل الإرسال: {exc}'); return False
 
