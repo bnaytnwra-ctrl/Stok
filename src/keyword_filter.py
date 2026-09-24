@@ -54,12 +54,11 @@ def passes_keyword_filter(text: str):
         'failed primary endpoint',
     ))
 
-    # نستبعد أخبار التقاضي حتى لو احتوت بالصدفة على كلمات دوائية/تنظيمية.
-    # لا نُشترط upcoming_ok حالياً حتى لا نُسقط البيانات الصحفية التي تعلن
-    # المحفز بصياغة مستقبلية مختلفة. سنشدد على "المحفزات القادمة" بعد ثبات المسار.
+    # الكلمات العامة مثل anticipated / next week لا تكفي وحدها لتمرير الخبر.
+    # يجب أن يكون الخبر مرتبطًا بقطاع biotech/healthcare أو يحتوي محفزًا قويًا.
     return (
         (score >= POSITIVE_SCORE_THRESHOLD or strong_ok or upcoming_ok)
-        and (domain_ok or strong_ok or upcoming_ok)
+        and (domain_ok or strong_ok)
         and not hard_negative
         and not litigation_negative
     ), score, matched
