@@ -1,163 +1,56 @@
 # -*- coding: utf-8 -*-
-"""
-نقطة التشغيل الرئيسية.
-
-آلية العمل (تحل مشكلة تعارض الجدولة المذكورة بالمراجعة):
-- GitHub Actions يشغّل هذا السكربت مرة واحدة فقط عند بداية كل نافذة
-  (عبر cron مضبوط على بداية النافذة بالضبط، راجع alert.yml).
-- السكربت نفسه يحسب "نهاية النافذة الحالية" بتوقيت UTC، ثم يدخل في حلقة
-  داخلية تفحص الأخبار كل POLL_INTERVAL_SECONDS ثانية حتى تنتهي النافذة،
-  وبعدها يخرج تلقائيًا وتنتهي التشغيلة (job) بشكل طبيعي.
-- بما أن توقيت السعودية لا يتغير موسميًا (لا يوجد توقيت صيفي بالسعودية)،
-  فإن نوافذ UTC المحددة في config.py ثابتة طوال السنة ولا تحتاج تعديل.
-"""
-
-import csv
-import os
-import sys
-import time
-import traceback
+import csv, os, sys, time, traceback
 from datetime import datetime, timezone
-
 sys.path.insert(0, os.path.dirname(__file__))
-
-from config import LOG_CSV_PATH, POLL_INTERVAL_SECONDS, WINDOWS_UTC, ENABLE_VOLUME_SPIKE_FILTER
+from config import LOG_CSV_PATH,POLL_INTERVAL_SECONDS,WINDOWS_UTC,ENABLE_VOLUME_SPIKE_FILTER
 from dedup import SeenNewsStore
 from keyword_filter import passes_keyword_filter
-from news_sources import fetch_all_news, fetch_sec_edgar
+from news_sources import fetch_all_news,fetch_sec_edgar
 from price_filter import is_price_in_range
-from telegram_bot import format_alert_message, send_error_alert, send_telegram_message
+from telegram_bot import format_alert_message,send_error_alert,send_telegram_message
 from ticker_extractor import extract_ticker
+from translator import translate_news
 from volume_filter import has_volume_spike
 
+def _current_window_end(now):
+    for w in WINDOWS_UTC:
+        s=now.replace(hour=w['start'][0],minute=w['start'][1],second=0,microsecond=0); e=now.replace(hour=w['end'][0],minute=w['end'][1],second=0,microsecond=0)
+        if s<=now<=e:return e,w['name']
+    return None,None
 
-def _current_window_end(now: datetime):
-    """يحدد نهاية النافذة الحالية إذا كان الوقت الآن داخل إحدى النوافذ، وإلا None."""
-    for window in WINDOWS_UTC:
-        start_h, start_m = window["start"]
-        end_h, end_m = window["end"]
-        start = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
-        end = now.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
-        if start <= now <= end:
-            return end, window["name"]
-    return None, None
+def _log(ticker,title,price,source,link,score,published):
+    os.makedirs(os.path.dirname(LOG_CSV_PATH),exist_ok=True); new=not os.path.exists(LOG_CSV_PATH)
+    with open(LOG_CSV_PATH,'a',newline='',encoding='utf-8') as f:
+        w=csv.writer(f)
+        if new:w.writerow(['timestamp_utc','ticker','title_ar','price','source','link','score','published'])
+        w.writerow([datetime.now(timezone.utc).isoformat(),ticker,title,price,source,link,score,published])
 
-
-def _ensure_log_header():
-    if not os.path.exists(LOG_CSV_PATH):
-        os.makedirs(os.path.dirname(LOG_CSV_PATH), exist_ok=True)
-        with open(LOG_CSV_PATH, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                ["timestamp_utc", "ticker", "title", "price", "source", "link", "score"]
-            )
-
-
-def _log_alert(ticker, title, price, source, link, score):
-    _ensure_log_header()
-    with open(LOG_CSV_PATH, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(
-            [datetime.now(timezone.utc).isoformat(), ticker, title, price, source, link, score]
-        )
-
-
-def process_one_pass(store: SeenNewsStore, stats: dict):
-    """فحص واحد لكل المصادر، وإرسال تنبيهات للأخبار الجديدة المطابقة."""
-    all_news = fetch_all_news() + fetch_sec_edgar()
-    stats["fetched"] += len(all_news)
-
-    for item in all_news:
-        news_id = item["id"]
-        if not store.is_new(news_id):
-            continue
-        stats["new"] += 1
-
-        # نعتبر الخبر "مُعالَجًا" فور فحصه (سواء طابق الفلاتر أم لا) لتجنب إعادة فحصه
-        store.mark_seen(news_id)
-
-        full_text = f"{item['title']} {item['summary']}"
-
-        passed_keywords, score, matched = passes_keyword_filter(full_text)
-        if not passed_keywords:
-            stats["failed_keywords"] += 1
-            continue
-        stats["passed_keywords"] += 1
-
-        ticker = extract_ticker(full_text)
-        if not ticker:
-            stats["failed_ticker"] += 1
-            print(f"[main] رفض (بلا رمز سهم): {item['title'][:80]}")
-            continue
-        stats["passed_ticker"] += 1
-
-        in_range, price = is_price_in_range(ticker)
-        if not in_range:
-            stats["failed_price"] += 1
-            print(f"[main] رفض (سعر غير مؤكد/خارج النطاق) {ticker}: {item['title'][:80]}")
-            continue
-        stats["passed_price"] += 1
-
-        if ENABLE_VOLUME_SPIKE_FILTER and not has_volume_spike(ticker):
-            stats["failed_volume"] += 1
-            continue
-
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        message = format_alert_message(ticker, item["title"], price, item["link"], timestamp)
-        send_telegram_message(message)
-        _log_alert(ticker, item["title"], price, item["source"], item["link"], score)
-        stats["alerts_sent"] += 1
-        print(f"[main] تم إرسال تنبيه: {ticker} - {item['title']} (نقاط: {score})")
-
+def process_one_pass(store,stats):
+    for item in fetch_all_news()+fetch_sec_edgar():
+        if not store.is_new(item['id']): continue
+        store.mark_seen(item['id']); stats['new']+=1
+        ok,score,_=passes_keyword_filter((item.get('title','')+' '+item.get('summary','')))
+        if not ok: continue
+        ticker=extract_ticker(item.get('title','')+' '+item.get('summary',''))
+        if not ticker: continue
+        in_range,price=is_price_in_range(ticker)
+        if not in_range: continue
+        if ENABLE_VOLUME_SPIKE_FILTER and not has_volume_spike(ticker): continue
+        title_ar,summary_ar=translate_news(item.get('title',''),item.get('summary',''))
+        if not summary_ar: continue
+        msg=format_alert_message(ticker,title_ar or item.get('title',''),summary_ar,item.get('published',''),price,item.get('link',''),item.get('source',''),score)
+        if send_telegram_message(msg):
+            _log(ticker,title_ar or item.get('title',''),price,item.get('source',''),item.get('link',''),score,item.get('published','')); stats['alerts_sent']+=1
 
 def run():
-    now = datetime.now(timezone.utc)
-    window_end, window_name = _current_window_end(now)
-
-    if window_end is None:
-        print("[main] الوقت الحالي خارج نوافذ التشغيل المحددة - لا حاجة للتشغيل.")
-        return
-
-    print(f"[main] بدء المراقبة ضمن نافذة '{window_name}' حتى {window_end.isoformat()} UTC")
-
-    store = SeenNewsStore()
-    stats = {
-        "fetched": 0,
-        "new": 0,
-        "passed_keywords": 0,
-        "failed_keywords": 0,
-        "passed_ticker": 0,
-        "failed_ticker": 0,
-        "passed_price": 0,
-        "failed_price": 0,
-        "failed_volume": 0,
-        "alerts_sent": 0,
-    }
-
+    end,name=_current_window_end(datetime.now(timezone.utc))
+    if end is None: print('[main] خارج نافذة التشغيل.'); return
+    store=SeenNewsStore(); stats={'new':0,'alerts_sent':0}
     try:
-        while datetime.now(timezone.utc) <= window_end:
-            process_one_pass(store, stats)
-            time.sleep(POLL_INTERVAL_SECONDS)
-    except Exception:  # noqa: BLE001 - نريد تسجيل أي خطأ غير متوقع وتبليغ المطور
-        error_text = traceback.format_exc()
-        print(f"[main] خطأ غير متوقع:\n{error_text}")
-        send_error_alert(error_text[-500:])  # آخر 500 حرف كافية للتشخيص السريع
-    finally:
-        store.save()
-        print(
-            "[main] ملخص التشغيلة: "
-            f"إجمالي مرات الجلب={stats['fetched']}, "
-            f"أخبار جديدة فريدة={stats['new']}, "
-            f"عبرت الكلمات المفتاحية={stats['passed_keywords']} "
-            f"(رفضت={stats['failed_keywords']}), "
-            f"وُجد لها رمز سهم={stats['passed_ticker']} "
-            f"(بلا رمز={stats['failed_ticker']}), "
-            f"سعرها بالنطاق={stats['passed_price']} "
-            f"(رفضت بالسعر={stats['failed_price']}), "
-            f"تنبيهات أُرسلت={stats['alerts_sent']}"
-        )
-        print("[main] انتهت النافذة أو توقف التشغيل، تم حفظ سجل الأخبار المُعالَجة.")
+        while datetime.now(timezone.utc)<=end:
+            process_one_pass(store,stats); time.sleep(POLL_INTERVAL_SECONDS)
+    except Exception:
+        err=traceback.format_exc(); print(err); send_error_alert(err)
+    finally: store.save(); print('[main] ملخص:',stats)
 
-
-if __name__ == "__main__":
-    run()
+if __name__=='__main__': run()
