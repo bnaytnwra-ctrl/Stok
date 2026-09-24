@@ -14,48 +14,90 @@ from volume_filter import has_volume_spike
 
 def _current_window_end(now):
     for w in WINDOWS_UTC:
-        s=now.replace(hour=w['start'][0],minute=w['start'][1],second=0,microsecond=0); e=now.replace(hour=w['end'][0],minute=w['end'][1],second=0,microsecond=0)
-        if s<=now<=e:return e,w['name']
+        s=now.replace(hour=w['start'][0],minute=w['start'][1],second=0,microsecond=0)
+        e=now.replace(hour=w['end'][0],minute=w['end'][1],second=0,microsecond=0)
+        if s<=now<=e:
+            return e,w['name']
     return None,None
 
 def _log(ticker,title,price,source,link,score,published):
-    os.makedirs(os.path.dirname(LOG_CSV_PATH),exist_ok=True); new=not os.path.exists(LOG_CSV_PATH)
+    os.makedirs(os.path.dirname(LOG_CSV_PATH),exist_ok=True)
+    new=not os.path.exists(LOG_CSV_PATH)
     with open(LOG_CSV_PATH,'a',newline='',encoding='utf-8') as f:
         w=csv.writer(f)
-        if new:w.writerow(['timestamp_utc','ticker','title_ar','price','source','link','score','published'])
+        if new:
+            w.writerow(['timestamp_utc','ticker','title_ar','price','source','link','score','published'])
         w.writerow([datetime.now(timezone.utc).isoformat(),ticker,title,price,source,link,score,published])
 
 def process_one_pass(store,stats):
-    for item in fetch_all_news()+fetch_sec_edgar():
-        if not store.is_new(item['id']): continue
-        store.mark_seen(item['id']); stats['new']+=1
-        ok,score,_=passes_keyword_filter((item.get('title','')+' '+item.get('summary','')))
-        if not ok: continue
-        ticker=extract_ticker(item.get('title','')+' '+item.get('summary',''))
-        if not ticker: continue
+    items=fetch_all_news()+fetch_sec_edgar()
+    stats['fetched']+=len(items)
+    for item in items:
+        if not store.is_new(item['id']):
+            stats['duplicates']+=1
+            continue
+        text=(item.get('title','')+' '+item.get('summary','')).strip()
+        ok,score,matched=passes_keyword_filter(text)
+        if not ok:
+            stats['keyword_rejected']+=1
+            continue
+        stats['keyword_pass']+=1
+        ticker=extract_ticker(text)
+        if not ticker:
+            stats['ticker_rejected']+=1
+            continue
+        stats['ticker_pass']+=1
         in_range,price=is_price_in_range(ticker)
-        if not in_range: continue
-        if ENABLE_VOLUME_SPIKE_FILTER and not has_volume_spike(ticker): continue
+        if not in_range:
+            stats['price_rejected']+=1
+            print('[main] مرشح '+ticker+' مستبعد سعرياً: $'+str(price))
+            store.mark_seen(item['id'])
+            continue
+        stats['price_pass']+=1
+        print('[main] مرشح مؤهل: '+ticker+' $'+str(price)+' | score='+str(score))
+        if ENABLE_VOLUME_SPIKE_FILTER and not has_volume_spike(ticker):
+            stats['volume_rejected']+=1
+            store.mark_seen(item['id'])
+            continue
+        stats['translation_attempts']+=1
         title_ar,summary_ar=translate_news(item.get('title',''),item.get('summary',''))
-        if not summary_ar: continue
+        if not summary_ar:
+            stats['translation_failed']+=1
+            print('[main] فشل ترجمة المرشح '+ticker+' - سيعاد في الفحص القادم')
+            continue
+        stats['translated']+=1
         msg=format_alert_message(ticker,title_ar or item.get('title',''),summary_ar,item.get('published',''),price,item.get('link',''),item.get('source',''),score)
         if send_telegram_message(msg):
-            _log(ticker,title_ar or item.get('title',''),price,item.get('source',''),item.get('link',''),score,item.get('published','')); stats['alerts_sent']+=1
+            store.mark_seen(item['id'])
+            _log(ticker,title_ar or item.get('title',''),price,item.get('source',''),item.get('link',''),score,item.get('published',''))
+            stats['alerts_sent']+=1
+            print('[main] تم إرسال التنبيه: '+ticker)
+        else:
+            stats['telegram_failed']+=1
+            print('[main] فشل إرسال Telegram للمرشح '+ticker+' - سيعاد في الفحص القادم')
 
 def run():
-    force_scan = os.environ.get('FORCE_SCAN', '').lower() == 'true'
+    force_scan=os.environ.get('FORCE_SCAN','').lower()=='true'
     end,name=_current_window_end(datetime.now(timezone.utc))
-    if end is None and not force_scan: print('[main] خارج نافذة التشغيل.'); return
-    store=SeenNewsStore(); stats={'new':0,'alerts_sent':0}
+    if end is None and not force_scan:
+        print('[main] خارج نافذة التشغيل.')
+        return
+    store=SeenNewsStore()
+    stats={'fetched':0,'new':0,'duplicates':0,'keyword_pass':0,'keyword_rejected':0,'ticker_pass':0,'ticker_rejected':0,'price_pass':0,'price_rejected':0,'volume_rejected':0,'translation_attempts':0,'translated':0,'translation_failed':0,'alerts_sent':0,'telegram_failed':0}
     try:
         if force_scan:
             print('[main] فحص يدوي مباشر')
             process_one_pass(store,stats)
         else:
             while datetime.now(timezone.utc)<=end:
-                process_one_pass(store,stats); time.sleep(POLL_INTERVAL_SECONDS)
+                process_one_pass(store,stats)
+                time.sleep(POLL_INTERVAL_SECONDS)
     except Exception:
-        err=traceback.format_exc(); print(err); send_error_alert(err)
-    finally: store.save(); print('[main] ملخص:',stats)
+        err=traceback.format_exc()
+        print(err)
+        send_error_alert(err)
+    finally:
+        store.save()
+        print('[main] ملخص:',stats)
 
 if __name__=='__main__': run()
