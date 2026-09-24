@@ -43,12 +43,17 @@ def process_one_pass(store,stats):
             _log(ticker,title_ar or item.get('title',''),price,item.get('source',''),item.get('link',''),score,item.get('published','')); stats['alerts_sent']+=1
 
 def run():
+    force_scan = os.environ.get('FORCE_SCAN', '').lower() == 'true'
     end,name=_current_window_end(datetime.now(timezone.utc))
-    if end is None: print('[main] خارج نافذة التشغيل.'); return
+    if end is None and not force_scan: print('[main] خارج نافذة التشغيل.'); return
     store=SeenNewsStore(); stats={'new':0,'alerts_sent':0}
     try:
-        while datetime.now(timezone.utc)<=end:
-            process_one_pass(store,stats); time.sleep(POLL_INTERVAL_SECONDS)
+        if force_scan:
+            print('[main] فحص يدوي مباشر')
+            process_one_pass(store,stats)
+        else:
+            while datetime.now(timezone.utc)<=end:
+                process_one_pass(store,stats); time.sleep(POLL_INTERVAL_SECONDS)
     except Exception:
         err=traceback.format_exc(); print(err); send_error_alert(err)
     finally: store.save(); print('[main] ملخص:',stats)
