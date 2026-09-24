@@ -9,7 +9,7 @@ from news_sources import fetch_all_news,fetch_sec_edgar
 from price_filter import is_price_in_range
 from telegram_bot import format_alert_message,send_error_alert,send_telegram_message
 from ticker_extractor import extract_ticker
-from translator import translate_news
+
 from volume_filter import has_volume_spike
 
 def _current_window_end(now):
@@ -66,7 +66,7 @@ def process_one_pass(store,stats):
             print('[main] فشل ترجمة المرشح '+ticker+' - سيعاد في الفحص القادم')
             continue
         stats['translated']+=1
-        msg=format_alert_message(ticker,title_ar or item.get('title',''),summary_ar,item.get('published',''),price,item.get('link',''),item.get('source',''),score)
+        msg=format_alert_message(ticker,item.get('title',''),summary_ar,item.get('published',''),price,item.get('link',''),item.get('source',''),score)
         if send_telegram_message(msg):
             store.mark_seen(item['id'])
             _log(ticker,title_ar or item.get('title',''),price,item.get('source',''),item.get('link',''),score,item.get('published',''))
@@ -83,7 +83,7 @@ def run():
         print('[main] خارج نافذة التشغيل.')
         return
     store=SeenNewsStore()
-    stats={'fetched':0,'new':0,'duplicates':0,'keyword_pass':0,'keyword_rejected':0,'ticker_pass':0,'ticker_rejected':0,'price_pass':0,'price_rejected':0,'volume_rejected':0,'translation_attempts':0,'translated':0,'translation_failed':0,'alerts_sent':0,'telegram_failed':0}
+    stats={'fetched':0,'new':0,'duplicates':0,'keyword_pass':0,'keyword_rejected':0,'ticker_pass':0,'ticker_rejected':0,'price_pass':0,'price_rejected':0,'volume_rejected':0,'alerts_sent':0,'telegram_failed':0}
     try:
         if force_scan:
             print('[main] فحص يدوي مباشر')
