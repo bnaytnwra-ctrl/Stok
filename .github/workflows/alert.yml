@@ -1,11 +1,12 @@
 name: Stock News Alert Bot
 
+# مصمم ليناسب باقة GitHub المجانية (~81 دقيقة يوميًا ≈ 1700-1860 شهريًا < 2000)
 on:
   schedule:
-    # قبل الافتتاح (تقويم + فحص لحظي)
-    - cron: "0 10 * * 1-5"
-    # بعد الإغلاق (تقويم + فحص لحظي)
-    - cron: "30 19 * * 1-5"
+    # قبل الافتتاح: 12:45 UTC = 8:45 نيويورك (صيفًا) — تقويم + فحص لحظي 45 دقيقة
+    - cron: "45 12 * * 1-5"
+    # الإغلاق وبعده: 20:00 UTC = 16:00 نيويورك (صيفًا) — فحص لحظي 30 دقيقة
+    - cron: "0 20 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:
@@ -29,7 +30,7 @@ concurrency:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,6 +41,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
         run: pip install --quiet -r requirements.txt
@@ -51,9 +53,17 @@ jobs:
             echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
             # التشغيل اليدوي: فحص سريع لمرة واحدة (ينتهي خلال دقيقة تقريبًا)
             echo "single=true" >> "$GITHUB_OUTPUT"
-          else
+            echo "window=30" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "45 12 * * 1-5" ]; then
+            # نافذة ما قبل الافتتاح: تقويم المحفزات + فحص لحظي 45 دقيقة
             echo "value=both" >> "$GITHUB_OUTPUT"
             echo "single=false" >> "$GITHUB_OUTPUT"
+            echo "window=45" >> "$GITHUB_OUTPUT"
+          else
+            # نافذة الإغلاق: فحص لحظي 30 دقيقة فقط (التقويم صباحًا يكفي)
+            echo "value=realtime" >> "$GITHUB_OUTPUT"
+            echo "single=false" >> "$GITHUB_OUTPUT"
+            echo "window=30" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run bot
@@ -62,7 +72,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-          REALTIME_WINDOW_MINUTES: "35"
+          REALTIME_WINDOW_MINUTES: ${{ steps.mode.outputs.window }}
           REALTIME_SINGLE_PASS: ${{ steps.mode.outputs.single }}
         run: python bot.py --mode ${{ steps.mode.outputs.value }}
 
