@@ -27,6 +27,7 @@ bot.py
 from __future__ import annotations
 
 import argparse
+import calendar
 import csv
 import hashlib
 import html
@@ -107,7 +108,7 @@ ALERTS_LOG_PATH = LOG_DIR / "alerts_log.csv"
 FEEDS = {
     "PR Newswire - Biotech": "https://www.prnewswire.com/rss/health-latest-news/biotechnology-latest-news-list.rss",
     "GlobeNewswire - Biotechnology": "https://www.globenewswire.com/RssFeed/subjectcode/17-Biotechnology/feedTitle/GlobeNewswire%20-%20Biotechnology",
-    "GlobeNewswire - Life Sciences": "https://www.globenewswire.com/RssFeed/industry/9573-Biotechnology/feedTitle/GlobeNewswire%20-%20Industry%20News%20on%20Biotechnology",
+    "Newsfile - Latest": "https://feeds.newsfilecorp.com/global/Last25Stories",
     "FDA - Press Releases": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml",
 }
 
@@ -126,6 +127,12 @@ BREAKTHROUGH_KEYWORDS = [
     "met primary endpoint", "met its primary endpoint", "topline results positive",
     "positive topline data", "strategic partnership", "licensing agreement",
     "collaboration agreement", "exclusive license agreement", "acquisition agreement",
+    # --- محفزات عاجلة إضافية (v2.2) ---
+    "accelerated approval", "fda accepts", "fda accepted",
+    "nda accepted", "bla accepted", "nda submission", "bla submission",
+    "topline", "data readout", "trial results", "study results",
+    # تنبيهات سلبية (تحذير — أثر سلبي محتمل على السهم)
+    "complete response letter", "clinical hold",
 ]
 
 # --- كلمات مفتاحية: محفزات مستقبلية (تُستخدم مع تاريخ) ---
@@ -135,6 +142,11 @@ CATALYST_KEYWORDS = [
     "phase 3 data", "phase iii data", "phase 2 data", "phase ii data",
     "adcom meeting", "advisory committee meeting", "clinical trial completion",
     "readout expected", "data readout anticipated", "expected to report",
+    # --- محفزات تقويمية إضافية (v2.2) ---
+    "action date", "decision date", "first patient",
+    "enrollment completed", "enrollment complete", "trial initiation",
+    "topline readout", "data readout", "will present", "to present",
+    "fda meeting",
 ]
 
 # --- سياق للتأكد أن الخبر بيوتك/FDA فعلاً ---
@@ -159,6 +171,42 @@ DATE_PATTERNS = [
 ]
 
 QUARTER_END = {"1": (3, 31), "2": (6, 30), "3": (9, 30), "4": (12, 31)}
+
+# نافذة أوسع للتواريخ المستنتجة تقريبًا (مثل "June 2027" أو "late 2027")
+# لأنها بصيغ شهر/نصف سنة وقد تكون أبعد من نافذة التقويم القصيرة (سنتان افتراضيًا)
+CALENDAR_APPROX_WINDOW_DAYS = int(_env("CALENDAR_APPROX_WINDOW_DAYS", "730") or 730)
+
+# تواريخ نسبية شائعة في الأخبار: (النمط، نوع التقدير باليوم من تاريخ التشغيل)
+RELATIVE_DATE_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\btomorrow\b", re.IGNORECASE), "tomorrow"),
+    (re.compile(r"\btoday\b|\btonight\b", re.IGNORECASE), "today"),
+    (re.compile(r"\bthis week\b", re.IGNORECASE), "this_week"),
+    (re.compile(r"\bnext week\b", re.IGNORECASE), "next_week"),
+    (re.compile(r"\bcoming days\b", re.IGNORECASE), "coming_days"),
+    (re.compile(r"\blater (?:in )?this month\b", re.IGNORECASE), "later_this_month"),
+]
+
+# صيغة "June 2026" (شهر + سنة) → آخر يوم في الشهر المذكور
+MONTH_YEAR_RE = re.compile(
+    r"\b(January|February|March|April|May|June|July|August|September|October|November|December)"
+    r"\s+(20\d{2})\b",
+    re.IGNORECASE,
+)
+MONTH_NUMBER = {
+    "january": 1, "february": 2, "march": 3, "april": 4,
+    "may": 5, "june": 6, "july": 7, "august": 8,
+    "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+# صيغ نصف السنة: H1 2026 / 1H 2026 / first half of 2026 → آخر يوم في النصف
+HALF_YEAR_PATTERNS = [
+    re.compile(r"\bH([12])[\s-]+(20\d{2})\b", re.IGNORECASE),
+    re.compile(r"\b([12])H[\s-]+(20\d{2})\b", re.IGNORECASE),
+    re.compile(r"\b(first|second|1st|2nd)\s+half\s+of\s+(20\d{2})\b", re.IGNORECASE),
+]
+
+# صيغ early / mid / late + سنة (تقدير داخل السنة)
+EARLY_MID_LATE_RE = re.compile(r"\b(early|mid|late)[\s-]+(20\d{2})\b", re.IGNORECASE)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -613,8 +661,80 @@ def find_catalyst_keyword(text_lower: str) -> Optional[str]:
     return None
 
 
-def extract_future_event_date(text: str, run_date: datetime) -> Optional[datetime]:
-    """يحاول استخراج تاريخ مستقبلي قريب (خلال نافذة الأيام المحددة) من نص الخبر."""
+def _estimate_relative_date(kind: str, run_date: datetime) -> datetime:
+    """تقدير تاريخ من تعبير نسبي (عدد أيام مقدّر من تاريخ التشغيل)."""
+    if kind == "tomorrow":
+        return run_date + timedelta(days=1)
+    if kind == "today":
+        return run_date
+    if kind == "this_week":
+        # نهاية الأسبوع الحالي (الأحد القادم)
+        return run_date + timedelta(days=(6 - run_date.weekday()) % 7)
+    if kind == "next_week":
+        return run_date + timedelta(days=7)
+    if kind == "coming_days":
+        return run_date + timedelta(days=3)
+    if kind == "later_this_month":
+        # آخر يوم في الشهر الحالي
+        last_day = calendar.monthrange(run_date.year, run_date.month)[1]
+        return run_date.replace(day=last_day)
+    return run_date
+
+
+def _extract_approx_event_date(text: str, run_date: datetime) -> Optional[datetime]:
+    """استخراج تاريخ مستنتج تقريبًا (نسبي أو شهر/سنة أو نصف سنة) — بدون فلتر النافذة."""
+    # 1) تواريخ نسبية: tomorrow / today / this week / next week / coming days / later this month
+    for pattern, kind in RELATIVE_DATE_PATTERNS:
+        if pattern.search(text):
+            return _estimate_relative_date(kind, run_date)
+
+    # 2) "June 2026" → آخر يوم في الشهر
+    m = MONTH_YEAR_RE.search(text)
+    if m:
+        month = MONTH_NUMBER[m.group(1).lower()]
+        year = int(m.group(2))
+        day = calendar.monthrange(year, month)[1]
+        return datetime(year, month, day, tzinfo=run_date.tzinfo)
+
+    # 3) "H1 2026" / "1H 2026" / "first half of 2026" → 30 يونيو
+    #    "H2 2026" / "second half of 2026" → 31 ديسمبر
+    for pattern in HALF_YEAR_PATTERNS:
+        hm = pattern.search(text)
+        if hm:
+            half = hm.group(1).lower()
+            year = int(hm.group(2))
+            if half in ("1", "first", "1st"):
+                return datetime(year, 6, 30, tzinfo=run_date.tzinfo)
+            return datetime(year, 12, 31, tzinfo=run_date.tzinfo)
+
+    # 4) "early 2026" → 31 مارس | "mid 2026" → 30 يونيو | "late 2026" → 31 ديسمبر
+    em = EARLY_MID_LATE_RE.search(text)
+    if em:
+        word = em.group(1).lower()
+        year = int(em.group(2))
+        if word == "early":
+            return datetime(year, 3, 31, tzinfo=run_date.tzinfo)
+        if word == "mid":
+            return datetime(year, 6, 30, tzinfo=run_date.tzinfo)
+        return datetime(year, 12, 31, tzinfo=run_date.tzinfo)
+
+    return None
+
+
+def extract_event_date(text: str, run_date: datetime) -> tuple[Optional[datetime], bool]:
+    """استخراج تاريخ الحدث القادم من نص الخبر.
+
+    يرجع (التاريخ، تقريبي؟):
+      - تواريخ صريحة (March 15, 2027 / 3/15/2027 / Q1 2027) ضمن نافذة التقويم:
+        تقريبي = False (سلوك قديم دون تغيير).
+      - تواريخ مستنتجة بتقدير من تاريخ التشغيل (tomorrow, this week, coming days,
+        later this month, H1 2026, June 2026, early/mid/late 2026,
+        first/second half of 2026): تقريبي = True وتُعرض بعلامة ~ مع تنويه.
+    """
+    if not text:
+        return None, False
+
+    # 1) تواريخ صريحة — نافذة التقويم القصيرة كما كانت
     candidates = []
     for pattern in DATE_PATTERNS:
         candidates.extend(pattern.findall(text))
@@ -641,9 +761,22 @@ def extract_future_event_date(text: str, run_date: datetime) -> Optional[datetim
 
         delta_days = (parsed.date() - run_date.date()).days
         if 0 <= delta_days <= CALENDAR_WINDOW_DAYS_MAX:
-            return parsed
+            return parsed, False
 
-    return None
+    # 2) تواريخ مستنتجة تقريبًا — نافذة أطول (بصيغ شهر/نصف سنة)
+    approx = _extract_approx_event_date(text, run_date)
+    if approx is not None:
+        delta_days = (approx.date() - run_date.date()).days
+        if 0 <= delta_days <= CALENDAR_APPROX_WINDOW_DAYS:
+            return approx, True
+
+    return None, False
+
+
+def extract_future_event_date(text: str, run_date: datetime) -> Optional[datetime]:
+    """(واجهة متوافقة) التاريخ المستقبلي فقط، دون علم التقريب."""
+    event_date, _approx = extract_event_date(text, run_date)
+    return event_date
 
 
 # ترجمة/تلخيص مبسّط بالعربية لنوع المحفز
@@ -673,6 +806,21 @@ BREAKTHROUGH_AR_LABELS = {
     "collaboration agreement": "اتفاقية تعاون",
     "exclusive license agreement": "اتفاقية ترخيص حصرية",
     "acquisition agreement": "اتفاقية استحواذ",
+    # --- محفزات عاجلة إضافية (v2.2) ---
+    "accelerated approval": "موافقة مسرّعة من FDA (Accelerated Approval)",
+    "fda accepts": "FDA تقبل طلب المراجعة/التسجيل",
+    "fda accepted": "FDA تقبل طلب المراجعة/التسجيل",
+    "nda accepted": "قبول FDA لطلب تسجيل الدواء (NDA)",
+    "bla accepted": "قبول FDA لطلب الترخيص البيولوجي (BLA)",
+    "nda submission": "إيداع طلب تسجيل الدواء (NDA) لدى FDA",
+    "bla submission": "إيداع طلب الترخيص البيولوجي (BLA) لدى FDA",
+    "topline": "نتائج أولية (Topline) للتجربة",
+    "data readout": "إعلان نتائج البيانات (Readout)",
+    "trial results": "نتائج التجربة السريرية",
+    "study results": "نتائج الدراسة السريرية",
+    # تنبيهات سلبية (تحذير — أثر سلبي محتمل على السهم)
+    "complete response letter": "⚠️ تحذير سلبي: خطاب استجابة كاملة (CRL) من FDA — رفض/طلبات تعديلات",
+    "clinical hold": "⚠️ تحذير سلبي: إيقاف سريري (Clinical Hold) من FDA — أثر سلبي محتمل",
 }
 
 CATALYST_AR_LABELS = {
@@ -693,6 +841,18 @@ CATALYST_AR_LABELS = {
     "readout expected": "نتائج (Readout) متوقعة",
     "data readout anticipated": "نتائج (Readout) متوقعة",
     "expected to report": "من المتوقع الإعلان عن نتائج",
+    # --- محفزات تقويمية إضافية (v2.2) ---
+    "action date": "موعد الإجراء المطلوب للشركة (Action Date)",
+    "decision date": "موعد القرار المتوقع",
+    "first patient": "ضم أول مشارك في التجربة (First Patient In)",
+    "enrollment completed": "اكتمال تجنيد المشاركين في التجربة",
+    "enrollment complete": "اكتمال تجنيد المشاركين في التجربة",
+    "trial initiation": "انطلاق/بدء التجربة السريرية",
+    "topline readout": "نتائج أولية (Topline) متوقعة",
+    "data readout": "موعد إعلان نتائج البيانات (Readout)",
+    "will present": "عرض/تقديم نتائج علمية قادم",
+    "to present": "عرض/تقديم نتائج علمية",
+    "fda meeting": "اجتماع/مناقشة مع FDA",
 }
 
 
@@ -741,7 +901,7 @@ def run_calendar_mode(seen: dict) -> dict:
                 stats["no_catalyst_kw"] += 1
                 continue
 
-            event_date = extract_future_event_date(full_text, run_date)
+            event_date, date_approx = extract_event_date(full_text, run_date)
             if event_date is None:
                 stats["no_event_date"] += 1
                 continue
@@ -773,6 +933,7 @@ def run_calendar_mode(seen: dict) -> dict:
                 "ticker": ticker,
                 "price": price,
                 "event_date": event_date,
+                "date_approx": date_approx,
                 "catalyst_type": CATALYST_AR_LABELS.get(catalyst_kw, catalyst_kw),
                 "title": title,
                 "url": url,
@@ -800,15 +961,26 @@ def run_calendar_mode(seen: dict) -> dict:
     found_events.sort(key=lambda e: e["event_date"])
 
     lines = ["🗓️ <b>تقويم المحفزات القادمة</b>", ""]
+    has_approx = False
     for ev in found_events:
         title_ar = translate_text_ar(ev["title"][:200])
+        date_str = ev['event_date'].strftime('%Y-%m-%d')
+        if ev.get("date_approx"):
+            date_str = f"~{date_str} (تقريبي)"
+            has_approx = True
         lines.append(
             f"• <b>{escape_html(ev['ticker'])}</b> — ${ev['price']:.2f}\n"
-            f"   📅 {ev['event_date'].strftime('%Y-%m-%d')} | {escape_html(ev['catalyst_type'])}\n"
+            f"   📅 {date_str} | {escape_html(ev['catalyst_type'])}\n"
             f"   {escape_html(title_ar[:180])}\n"
             f"   🔗 {escape_html(ev['url'])}"
         )
         lines.append("")
+
+    if has_approx:
+        lines.append(
+            "ℹ️ الرمز <b>~</b> قبل التاريخ يعني تاريخًا <b>مستنتجًا تقريبًا</b> "
+            "من عبارة الخبر (مثل H1 2026 أو «later this month») وليس موعدًا مؤكدًا."
+        )
 
     message = "\n".join(lines).strip()
     sent_ok = send_telegram(message)
@@ -1041,7 +1213,7 @@ def main() -> int:
     args = parser.parse_args()
     single_pass = args.once or REALTIME_SINGLE_PASS
 
-    log.info("الإصدار: bot.py v2.1 | الوضع: %s | لمرة واحدة: %s", args.mode, single_pass)
+    log.info("الإصدار: bot.py v2.2 | الوضع: %s | لمرة واحدة: %s", args.mode, single_pass)
     log.info("جذر المستودع: %s", BASE_DIR)
 
     if args.mode == "test":
