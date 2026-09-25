@@ -1,0 +1,65 @@
+name: Stock News Alert Bot
+
+on:
+  schedule:
+    # تقويم المحفزات: مرة واحدة يوميًا قبل الافتتاح (12:30 UTC ≈ 8:30 صباحًا بتوقيت شرق أمريكا)
+    - cron: "30 12 * * 1-5"
+    # المسار اللحظي - نافذة ما قبل الافتتاح
+    - cron: "0 13 * * 1-5"
+    # المسار اللحظي - نافذة ما بعد الإغلاق
+    - cron: "0 21 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "وضع التشغيل اليدوي"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - calendar
+          - realtime
+          - both
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Determine run mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 12 * * 1-5" ]; then
+            echo "value=calendar" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=realtime" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: python src/bot.py --mode ${{ steps.mode.outputs.value }}
+
+      - name: Commit and push updated logs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add logs/
+          git diff --staged --quiet || git commit -m "chore: update logs [skip ci]"
+          git push
