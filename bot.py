@@ -205,7 +205,7 @@ def extract_ticker(text: str) -> Optional[str]:
 
 
 def get_price(ticker: str) -> Optional[float]:
-    if not FINNHUB_API_KEY or not ticker:
+    if not ticker:
         return None
     try:
         resp = requests.get(
@@ -222,6 +222,24 @@ def get_price(ticker: str) -> Optional[float]:
     except (requests.RequestException, ValueError, KeyError):
         log.warning("تعذر جلب سعر السهم %s من Finnhub", ticker)
         return None
+
+
+def translate_text_ar(text: str) -> str:
+    text = clean_text(text)
+    if not text:
+        return ""
+    try:
+        r = requests.get(
+            "https://api.mymemory.translated.net/get",
+            params={"q": text[:450], "langpair": "en|ar"},
+            timeout=15,
+        )
+        translated = (r.json().get("responseData") or {}).get("translatedText") or ""
+        if translated:
+            return clean_text(translated)
+    except Exception:
+        pass
+    return text
 
 
 def is_biotech_context(text_lower: str) -> bool:
