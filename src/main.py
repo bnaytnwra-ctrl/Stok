@@ -11,6 +11,7 @@ from telegram_bot import format_alert_message,send_error_alert,send_telegram_mes
 from translator import translate_news
 from ticker_extractor import extract_ticker
 from volume_filter import has_volume_spike
+from catalyst_features import find_upcoming_catalysts, mark_calendar_sent
 
 def _current_window_end(now):
     for w in WINDOWS_UTC:
@@ -36,6 +37,44 @@ def _mark_sec_retest_done():
     os.makedirs(os.path.dirname(SEC_RETEST_MARKER_PATH),exist_ok=True)
     with open(SEC_RETEST_MARKER_PATH,'w',encoding='utf-8') as f:
         f.write(datetime.now(timezone.utc).isoformat())
+
+def process_calendar(stats):
+    """المسار الجديد من ملفات كلود: محفزات Biotech/FDA القادمة، مع نفس فلتر السعر وTelegram."""
+    try:
+        events=find_upcoming_catalysts()
+        stats['calendar_found'] += len(events)
+        sent=[]
+        for event in events:
+            ticker=event.get('ticker')
+            in_range,price=is_price_in_range(ticker)
+            if not in_range:
+                stats['calendar_price_rejected'] += 1
+                print('[calendar] '+ticker+' مستبعد سعرياً: $'+str(price))
+                continue
+            title=event.get('title','')
+            summary=event.get('summary','') or event.get('catalyst_ar','')
+            translated_title,translated_summary=translate_news(title,summary)
+            msg=(
+                '📅 <b>محفز قادم Biotech / FDA</b>\n━━━━━━━━━━━━━━\n'
+                f'📌 <b>السهم:</b> {ticker}\n'
+                f'💰 <b>السعر:</b> ${price:.2f}\n'
+                f'📆 <b>الموعد المتوقع:</b> {event["event_date"].strftime("%Y-%m-%d")}\n'
+                f'🎯 <b>المحفز:</b> {event.get("catalyst_ar","")}\n\n'
+                f'📰 <b>العنوان:</b> {translated_title or title}\n\n'
+                f'📝 <b>التفاصيل:</b> {translated_summary or summary}\n\n'
+                f'🔗 <b>المصدر:</b> {event.get("source","")}\n'
+                f'🔗 <b>الخبر الأصلي:</b> {event.get("link","")}'
+            )
+            if send_telegram_message(msg):
+                sent.append(event)
+                stats['calendar_alerts_sent'] += 1
+                print('[calendar] تم إرسال التنبيه: '+ticker)
+            else:
+                stats['telegram_failed'] += 1
+        mark_calendar_sent(sent)
+    except Exception:
+        print('[calendar] خطأ:\n'+traceback.format_exc())
+        stats['calendar_errors'] += 1
 
 def process_one_pass(store,stats,retest_sec=False):
     items=fetch_all_news()+fetch_sec_edgar()
@@ -86,28 +125,11 @@ def process_one_pass(store,stats,retest_sec=False):
         translated_title, translated_summary = translate_news(original_title, original_summary)
         title_for_alert = translated_title or original_title
         summary_for_alert = translated_summary or original_summary
-        msg=format_alert_message(
-            ticker,
-            title_for_alert,
-            summary_for_alert,
-            item.get('published',''),
-            price,
-            item.get('link',''),
-            item.get('source',''),
-            score
-        )
+        msg=format_alert_message(ticker,title_for_alert,summary_for_alert,item.get('published',''),price,item.get('link',''),item.get('source',''),score)
 
         if send_telegram_message(msg):
             store.mark_seen(item['id'])
-            _log(
-                ticker,
-                original_title,
-                price,
-                item.get('source',''),
-                item.get('link',''),
-                score,
-                item.get('published','')
-            )
+            _log(ticker,original_title,price,item.get('source',''),item.get('link',''),score,item.get('published',''))
             stats['alerts_sent']+=1
             print('[main] تم إرسال التنبيه: '+ticker)
         else:
@@ -126,22 +148,15 @@ def run():
     if retest_sec:
         print('[main] إعادة اختبار إيداعات SEC القديمة مرة واحدة بعد تحديث محلل SEC')
     stats={
-        'fetched':0,
-        'new':0,
-        'duplicates':0,
-        'keyword_pass':0,
-        'keyword_rejected':0,
-        'ticker_pass':0,
-        'ticker_rejected':0,
-        'price_pass':0,
-        'price_rejected':0,
-        'volume_rejected':0,
-        'alerts_sent':0,
-        'telegram_failed':0,
-        'sec_retested':0
+        'fetched':0,'new':0,'duplicates':0,'keyword_pass':0,'keyword_rejected':0,
+        'ticker_pass':0,'ticker_rejected':0,'price_pass':0,'price_rejected':0,
+        'volume_rejected':0,'alerts_sent':0,'telegram_failed':0,'sec_retested':0,
+        'calendar_found':0,'calendar_alerts_sent':0,'calendar_price_rejected':0,'calendar_errors':0
     }
 
     try:
+        # تشغيل تقويم المحفزات مرة في كل تشغيل؛ ملف seen الخاص به يمنع التكرار.
+        process_calendar(stats)
         if force_scan:
             print('[main] فحص يدوي مباشر')
             process_one_pass(store,stats,retest_sec=retest_sec)
