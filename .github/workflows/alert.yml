@@ -2,9 +2,22 @@ name: Stock News Alert Bot
 
 on:
   schedule:
+    # قبل الافتتاح (تقويم + فحص لحظي)
     - cron: "0 10 * * 1-5"
+    # بعد الإغلاق (تقويم + فحص لحظي)
     - cron: "30 19 * * 1-5"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "وضع التشغيل اليدوي (اختر test أول مرة للتحقق من وصول التنبيهات)"
+        required: true
+        default: "test"
+        type: choice
+        options:
+          - test
+          - both
+          - calendar
+          - realtime
 
 permissions:
   contents: write
@@ -20,6 +33,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,20 +42,40 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install --quiet -r requirements.txt
 
-      - name: Run standalone Biotech/FDA bot
+      - name: Determine run mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+            # التشغيل اليدوي: فحص سريع لمرة واحدة (ينتهي خلال دقيقة تقريبًا)
+            echo "single=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=both" >> "$GITHUB_OUTPUT"
+            echo "single=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN || secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-        run: python bot.py --mode both
+          REALTIME_WINDOW_MINUTES: "35"
+          REALTIME_SINGLE_PASS: ${{ steps.mode.outputs.single }}
+        run: python bot.py --mode ${{ steps.mode.outputs.value }}
 
       - name: Commit and push logs
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash || git pull --no-rebase -X ours || true
           git add logs/
-          git diff --staged --quiet || git commit -m "chore: update bot logs [skip ci]"
-          git push
+          if git diff --staged --quiet; then
+            echo "لا توجد سجلات جديدة للحفظ"
+          else
+            git commit -m "chore: update bot logs [skip ci]"
+            git push || (git pull --rebase && git push)
+          fi
