@@ -57,7 +57,7 @@ FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 
 # --- نطاق السعر المستهدف (Penny Stocks) ---
 PRICE_MIN = float(os.environ.get("PRICE_MIN", "0.10"))
-PRICE_MAX = float(os.environ.get("PRICE_MAX", "5.00"))
+PRICE_MAX = float(os.environ.get("PRICE_MAX", "4.00"))
 
 # --- إعدادات تقويم المحفزات ---
 CALENDAR_WINDOW_DAYS_MIN = int(os.environ.get("CALENDAR_WINDOW_DAYS_MIN", "5"))
@@ -114,7 +114,7 @@ BIOTECH_CONTEXT_KEYWORDS = [
 ]
 
 TICKER_PATTERN = re.compile(
-    r"\((?:NASDAQ|NYSE American|NYSE|OTCQB|OTCQX|OTC Pink|OTC)\s*:\s*([A-Z]{1,6})\)",
+    r"(?:\((?:NASDAQ|NYSE(?:\s+American)?|AMEX|OTCQB|OTCQX|OTC(?:\s+Pink)?)\s*[:\-]\s*|\b(?:NASDAQ|NYSE|AMEX|OTC|OTCQB|OTCQX)\s*[:\-]\s*|\b(?:Ticker|Symbol)\s*[:\-]\s*|\$)([A-Z]{1,6})\)?",
     re.IGNORECASE,
 )
 
