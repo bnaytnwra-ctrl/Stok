@@ -85,7 +85,8 @@ bool   cfg_show_gz       = input.bool(true,  "Show Golden Zone Fill",  group=GRO
 string GROUP_DISPLAY              = "Display Settings"
 int    cfg_max_structures         = input.int(1,   "Keep Last N Structures", minval=1, maxval=5, group=GROUP_DISPLAY)
 bool   cfg_show_abc_labels        = input.bool(true, "Show A-B-C Labels",        group=GROUP_DISPLAY)
-bool   cfg_show_structure_lines   = input.bool(true, "Show Structure Lines",      group=GROUP_DISPLAY)
+bool   cfg_show_structure_lines   = input.bool(true, "Show Structure Lines",     group=GROUP_DISPLAY)
+bool   cfg_show_elliott_labels    = input.bool(false, "Show Elliott Wave Names in TP Labels (Wave 3...)", group=GROUP_DISPLAY, tooltip="يضيف اسم موجة إليوت (Wave 3, Harmonic...) بجانب أهداف TP على الشارت — معطّل افتراضياً لتبقى الملصقات قصيرة")
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ─── RETRACEMENT ENTRY ZONE SETTINGS (مستطيل منطقة الدخول عند التصحيح) ─────────
@@ -94,7 +95,7 @@ string GROUP_ENTRY          = "🎯 Retracement Entry Zone (منطقة الدخ�
 bool   cfg_show_entry_zone  = input.bool(true,   "إظهار مستطيل منطقة الدخول عند التصحيح", group=GROUP_ENTRY, tooltip="رسم مستطيل واضح وأنيق يحدد منطقة الدخول عند نقطة ارتداد C")
 color  cfg_col_entry_bull   = input.color(#00E676, "لون منطقة الشراء (Bullish Entry)",     group=GROUP_ENTRY)
 color  cfg_col_entry_bear   = input.color(#FF5252, "لون منطقة البيع (Bearish Entry)",       group=GROUP_ENTRY)
-int    cfg_entry_transp     = input.int(80,        "شفافية المستطيل (%)", minval=0, maxval=95, group=GROUP_ENTRY)
+int    cfg_entry_transp     = input.int(70,        "شفافية المستطيل (%)", minval=0, maxval=95, group=GROUP_ENTRY)
 float  cfg_entry_atr_mult   = input.float(0.35,    "سماكة منطقة الدخول (ATR Multiplier)", minval=0.1, maxval=2.0, step=0.05, group=GROUP_ENTRY)
 
 string GROUP_WEBHOOK         = "Webhook Action Names"
@@ -600,6 +601,10 @@ getExtensionColor(float ratio, bool isBullish) =>
 getStructureColor(bool isBullish) =>
     isBullish ? cfg_col_bull : cfg_col_bear
 
+// اسم موجة إليوت لكل نسبة فيب — يظهر دائماً في التولتيب، وعلى الملصق فقط عند تفعيل الإعداد
+getElliottLabel(float ratio, bool isBullish) =>
+    ratio == 0.618 ? "Wave 5" : ratio == 1.0 ? "C/3?" : ratio == 1.272 ? "Harmonic" : ratio == 1.618 ? "Wave 3" : ""
+
 detectPivots() =>
     float pivotHigh = f_pivotHigh(high, cfg_zigzag_depth)
     float pivotLow  = f_pivotLow(low,  cfg_zigzag_depth)
@@ -666,7 +671,7 @@ drawStructureLines(ABCStructure s) =>
 // ─── RETRACEMENT ENTRY ZONE BOX DRAWING ───────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 drawEntryZone(ABCStructure s) =>
-    if cfg_show_entry_zone
+    if cfg_show_entry_zone and not na(atr_val)
         float pA       = s.pointA.price
         float pB       = s.pointB.price
         float pC       = s.pointC.price
@@ -679,20 +684,15 @@ drawEntryZone(ABCStructure s) =>
         float topPrice = s.isBullish ? pC + boxHeight : pC
         float botPrice = s.isBullish ? pC : pC - boxHeight
 
+        // منطقة الدخول: مستطيل مظلل باللون فقط — بدون أي كتابة (لا "دخول" ولا "شراء" ولا أي نص)
         color borderCol = s.isBullish ? cfg_col_entry_bull : cfg_col_entry_bear
         color bgCol     = color.new(borderCol, cfg_entry_transp)
-        string txt      = s.isBullish ? "منطقة دخول شراء | ENTRY" : "منطقة دخول بيع | ENTRY"
 
         s.bxEntry := box.new(startBar, topPrice, endBar, botPrice,
              border_color=borderCol,
-             border_width=1,
+             border_width=2,
              border_style=line.style_solid,
-             bgcolor=bgCol,
-             text=txt,
-             text_size=size.small,
-             text_color=color.white,
-             text_halign=text.align_center,
-             text_valign=text.vcenter)
+             bgcolor=bgCol)
 
 drawExtensionLevels(ABCStructure s) =>
     float priceA   = s.pointA.price
@@ -724,6 +724,7 @@ drawExtensionLevels(ABCStructure s) =>
             float  ratio       = array.get(ratios, i)
             float  targetPrice = calcExtensionTarget(priceA, priceB, priceC, ratio, cfg_use_log)
             color  levelColor  = getExtensionColor(ratio, s.isBullish)
+            string elliottLbl  = getElliottLabel(ratio, s.isBullish)
             bool   isZoneLine  = (ratio == 1.5)
 
             if not isZoneLine
@@ -736,10 +737,10 @@ drawExtensionLevels(ABCStructure s) =>
                     line1618    := extLine
                     cached1618  := targetPrice
 
-                // Short, clear label: TP 1 · 85344.06 instead of long verbose text
+                // Short, clear label: TP 1 · 85344.06 (Elliott name optional via input, always in tooltip)
                 string tpShortName = "TP " + str.tostring(tp_count)
-                string labelText   = tpShortName + " · " + str.tostring(targetPrice, format.mintick)
-                string tooltipText = tpShortName + " (Fib " + str.tostring(ratio, "#.###") + ") - Target: " + str.tostring(targetPrice, format.mintick)
+                string labelText   = tpShortName + (cfg_show_elliott_labels and elliottLbl != "" ? " · " + elliottLbl : "") + " · " + str.tostring(targetPrice, format.mintick)
+                string tooltipText = tpShortName + " (Fib " + str.tostring(ratio, "#.###") + (elliottLbl != "" ? " · " + elliottLbl : "") + ") - Target: " + str.tostring(targetPrice, format.mintick)
                 array.push(s.extLabels, label.new(startBar, targetPrice, labelText, style=label.style_label_right, color=color.new(levelColor, 80), textcolor=cfg_col_text, size=size.small, tooltip=tooltipText))
             else
                 line extLine = line.new(startBar, targetPrice, endBar, targetPrice, color=color.new(color.white, 100), width=0, extend=cfg_extend_right ? extend.right : extend.none)
@@ -810,8 +811,6 @@ grayOutStructure(ABCStructure s) =>
     if not na(s.bxEntry)
         box.set_border_color(s.bxEntry, grayColor)
         box.set_bgcolor(s.bxEntry, color.new(grayColor, 92))
-        box.set_text(s.bxEntry, "منطقة ملغاة | Invalidated")
-        box.set_text_color(s.bxEntry, grayColor)
 
 checkAndInvalidateStructures(array<ABCStructure> structs, float currentClose) =>
     bool bullishInvalidated = false
