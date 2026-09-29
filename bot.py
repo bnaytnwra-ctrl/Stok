@@ -71,13 +71,16 @@ PRICE_MIN = float(_env("PRICE_MIN", "0.10") or 0.10)
 PRICE_MAX = float(_env("PRICE_MAX", "4.00") or 4.00)
 
 # --- إعدادات تقويم المحفزات ---
-CALENDAR_WINDOW_DAYS_MAX = int(_env("CALENDAR_WINDOW_DAYS_MAX", "7") or 7)
+CALENDAR_WINDOW_DAYS_MAX = int(_env("CALENDAR_WINDOW_DAYS_MAX", "5") or 5)
 CALENDAR_LOOKBACK_DAYS = int(_env("CALENDAR_LOOKBACK_DAYS", "21") or 21)
 # إرسال ملخص قصير حتى عند عدم وجود محفزات (حتى يعرف المستخدم أن البوت يعمل)
-CALENDAR_EMPTY_SUMMARY = _env("CALENDAR_EMPTY_SUMMARY", "true").lower() == "true"
+CALENDAR_EMPTY_SUMMARY = _env("CALENDAR_EMPTY_SUMMARY", "false").lower() == "true"
+# جلب نص الخبر الكامل (لاستخراج الموعد/الرمز) للأخبار المرشّحة فقط، بحد أقصى لكل تشغيل
+CALENDAR_FETCH_ARTICLES = _env("CALENDAR_FETCH_ARTICLES", "true").lower() == "true"
+CALENDAR_MAX_ARTICLE_FETCHES = int(_env("CALENDAR_MAX_ARTICLE_FETCHES", "40") or 40)
 
 # --- إعدادات الفحص اللحظي ---
-SCAN_INTERVAL_SECONDS = int(_env("SCAN_INTERVAL_SECONDS", "7") or 7)
+SCAN_INTERVAL_SECONDS = int(_env("SCAN_INTERVAL_SECONDS", "20") or 20)
 REALTIME_WINDOW_MINUTES = int(_env("REALTIME_WINDOW_MINUTES", "25") or 25)
 REALTIME_SINGLE_PASS = _env("REALTIME_SINGLE_PASS", "false").lower() == "true"
 # تجاهل الأخبار المنشورة قبل هذا العمر (حماية من تنبيهات قديمة عند أول تشغيل)
@@ -109,6 +112,12 @@ FEEDS = {
     "PR Newswire - Biotech": "https://www.prnewswire.com/rss/health-latest-news/biotechnology-latest-news-list.rss",
     "GlobeNewswire - Biotechnology": "https://www.globenewswire.com/RssFeed/subjectcode/17-Biotechnology/feedTitle/GlobeNewswire%20-%20Biotechnology",
     "Newsfile - Latest": "https://feeds.newsfilecorp.com/global/Last25Stories",
+    "PR Newswire - All News": "https://www.prnewswire.com/rss/news-releases-list.rss",
+    "PR Newswire - Clinical Trials": "https://www.prnewswire.com/rss/health-latest-news/clinical-trials-medical-discoveries-list.rss",
+    "PR Newswire - FDA News": "https://www.prnewswire.com/rss/health-latest-news/fda-approval-list.rss",
+    "GlobeNewswire - Public Companies": "https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20about%20Public%20Companies",
+    "GlobeNewswire - Clinical Study": "https://www.globenewswire.com/RssFeed/subjectcode/89-Clinical%20Study/feedTitle/GlobeNewswire%20-%20Clinical%20Study",
+    "Business Wire - Biotech": "https://feed.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFpVAg==",
     "FDA - Press Releases": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml",
 }
 
@@ -157,11 +166,10 @@ BIOTECH_CONTEXT_KEYWORDS = [
 ]
 
 TICKER_PATTERN = re.compile(
-    r"(?:\((?:NASDAQ|NYSE(?:\s+American)?|AMEX|TSX|TSXV|CSE|NEO|OTCQB|OTCQX|OTC(?:\s+Pink)?)\s*[:\-]\s*"
-    r"|\b(?:NASDAQ|NYSE|AMEX|TSX|TSXV|CSE|OTC|OTCQB|OTCQX)\s*[:\-]\s*"
-    r"|\b(?:Ticker|Symbol)\s*[:\-]\s*"
-    r"|\$)([A-Z]{1,6})\)?",
-    re.IGNORECASE,
+    r"(?:\((?i:NASDAQ|NYSE(?:\s+American)?|AMEX|TSX|TSXV|CSE|NEO|OTCQB|OTCQX|OTC(?:\s+Pink)?)\s*[:\-]\s*"
+    r"|\b(?i:NASDAQ|NYSE|AMEX|TSX|TSXV|CSE|OTC|OTCQB|OTCQX)\s*[:\-]\s*"
+    r"|\b(?i:Ticker|Symbol)\s*[:\-]\s*"
+    r"|\$)([A-Z]{1,6}(?:\.[A-Z])?)\b"
 )
 
 DATE_PATTERNS = [
@@ -174,12 +182,12 @@ QUARTER_END = {"1": (3, 31), "2": (6, 30), "3": (9, 30), "4": (12, 31)}
 
 # نافذة أوسع للتواريخ المستنتجة تقريبًا (مثل "June 2027" أو "late 2027")
 # لأنها بصيغ شهر/نصف سنة وقد تكون أبعد من نافذة التقويم القصيرة (سنتان افتراضيًا)
-CALENDAR_APPROX_WINDOW_DAYS = int(_env("CALENDAR_APPROX_WINDOW_DAYS", "730") or 730)
+CALENDAR_APPROX_WINDOW_DAYS = int(_env("CALENDAR_APPROX_WINDOW_DAYS", "") or CALENDAR_WINDOW_DAYS_MAX)
 
 # تواريخ نسبية شائعة في الأخبار: (النمط، نوع التقدير باليوم من تاريخ التشغيل)
 RELATIVE_DATE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\btomorrow\b", re.IGNORECASE), "tomorrow"),
-    (re.compile(r"\btoday\b|\btonight\b", re.IGNORECASE), "today"),
+    (re.compile(r"\b(?:later today|tonight|today at \d)", re.IGNORECASE), "today"),
     (re.compile(r"\bthis week\b", re.IGNORECASE), "this_week"),
     (re.compile(r"\bnext week\b", re.IGNORECASE), "next_week"),
     (re.compile(r"\bcoming days\b", re.IGNORECASE), "coming_days"),
@@ -643,8 +651,15 @@ def fetch_feed(source_name: str, feed_url: str):
 # ============================================================================
 
 
+def _kw_regex(words: list[str]) -> re.Pattern:
+    return re.compile(r"\b(?:" + "|".join(re.escape(w) for w in sorted(set(words), key=len, reverse=True)) + r")\b")
+
+
+_BIOTECH_RE = _kw_regex(BIOTECH_CONTEXT_KEYWORDS)
+
+
 def is_biotech_context(text_lower: str) -> bool:
-    return any(kw in text_lower for kw in BIOTECH_CONTEXT_KEYWORDS)
+    return bool(_BIOTECH_RE.search(text_lower))
 
 
 def find_breakthrough_keyword(text_lower: str) -> Optional[str]:
@@ -773,6 +788,35 @@ def extract_event_date(text: str, run_date: datetime) -> tuple[Optional[datetime
     return None, False
 
 
+def extract_event_date_near_keyword(text: str, keyword: str, run_date: datetime) -> tuple[Optional[datetime], bool]:
+    """يبحث عن الموعد قرب عبارة المحفز أولًا (أدق)، ثم في كامل النص كبديل."""
+    low = text.lower()
+    pos = low.find(keyword)
+    while pos != -1:
+        snippet = text[max(0, pos - 200): pos + len(keyword) + 250]
+        found = extract_event_date(snippet, run_date)
+        if found[0] is not None:
+            return found
+        pos = low.find(keyword, pos + 1)
+    return extract_event_date(text, run_date)
+
+
+def fetch_article_text(url: str) -> str:
+    """نص الخبر الكامل (اختياري) — الملخص في RSS غالبًا لا يحتوي الموعد ولا الرمز."""
+    if not url:
+        return ""
+    try:
+        resp = requests.get(url, headers=HTTP_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return ""
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        return re.sub(r"\s+", " ", soup.get_text(separator=" ")).strip()[:20000]
+    except requests.RequestException:
+        return ""
+
+
 def extract_future_event_date(text: str, run_date: datetime) -> Optional[datetime]:
     """(واجهة متوافقة) التاريخ المستقبلي فقط، دون علم التقريب."""
     event_date, _approx = extract_event_date(text, run_date)
@@ -869,7 +913,8 @@ def run_calendar_mode(seen: dict) -> dict:
     seen_tickers_dates = set()
     stats = {"feeds_ok": 0, "feeds_failed": 0, "entries": 0, "no_context": 0,
              "no_catalyst_kw": 0, "no_event_date": 0, "no_ticker": 0,
-             "price_rejected": 0, "already_sent": 0}
+             "price_rejected": 0, "already_sent": 0, "article_fetches": 0}
+    near_miss: list[str] = []
 
     for source_name, feed_url in FEEDS.items():
         try:
@@ -901,14 +946,28 @@ def run_calendar_mode(seen: dict) -> dict:
                 stats["no_catalyst_kw"] += 1
                 continue
 
-            event_date, date_approx = extract_event_date(full_text, run_date)
+            event_date, date_approx = extract_event_date_near_keyword(full_text, catalyst_kw, run_date)
+            ticker = extract_ticker(full_text)
+            url = getattr(entry, "link", "")
+
+            # الملخص قصير: نجلب نص الخبر الكامل للمرشّحين فقط (خبر بيوتك + كلمة محفز)
+            if (event_date is None or not ticker) and CALENDAR_FETCH_ARTICLES \
+                    and stats["article_fetches"] < CALENDAR_MAX_ARTICLE_FETCHES:
+                stats["article_fetches"] += 1
+                body = fetch_article_text(url)
+                if body:
+                    if event_date is None:
+                        event_date, date_approx = extract_event_date_near_keyword(body, catalyst_kw, run_date)
+                    if not ticker:
+                        ticker = extract_ticker(body[:3000]) or extract_ticker(body)
+                    full_text = f"{full_text} {body[:3000]}"
+
             if event_date is None:
                 stats["no_event_date"] += 1
                 continue
-
-            ticker = extract_ticker(full_text)
             if not ticker:
                 stats["no_ticker"] += 1
+                near_miss.append(f"{title[:90]} (بلا رمز)")
                 continue
 
             dedup_key = f"{ticker}:{event_date.date().isoformat()}"
@@ -926,9 +985,9 @@ def run_calendar_mode(seen: dict) -> dict:
             if price is None or not (PRICE_MIN <= price <= PRICE_MAX):
                 stats["price_rejected"] += 1
                 log.info("التقويم: %s مرفوض سعريًا ($%s من %s)", ticker, price, price_source)
+                near_miss.append(f"{ticker} ${price} خارج النطاق — {event_date.date()}")
                 continue
 
-            url = getattr(entry, "link", "")
             found_events.append({
                 "ticker": ticker,
                 "price": price,
@@ -947,15 +1006,20 @@ def run_calendar_mode(seen: dict) -> dict:
     if not found_events:
         log.info("لم يتم العثور على محفزات جديدة تطابق الشروط")
         if CALENDAR_EMPTY_SUMMARY:
-            summary_msg = (
-                "🗓️ <b>تقويم المحفزات — لا جديد</b>\n\n"
-                f"تم فحص {stats['entries']} خبر من {stats['feeds_ok']} مصادر، "
-                "ولا توجد محفزات جديدة ضمن النطاق السعري "
-                f"(${PRICE_MIN:.2f}–${PRICE_MAX:.2f}).\n"
-                f"🕒 آخر فحص: {run_date.strftime('%Y-%m-%d %H:%M')} UTC\n"
-                "✅ البوت يعمل بشكل طبيعي."
-            )
-            send_telegram(summary_msg)
+            lines = [
+                f"🗓️ <b>تقويم المحفزات (الـ{CALENDAR_WINDOW_DAYS_MAX} أيام القادمة) — لا جديد</b>",
+                "",
+                f"📰 فُحص {stats['entries']} خبر من {stats['feeds_ok']} مصدر"
+                + (f" (فشل {stats['feeds_failed']})" if stats["feeds_failed"] else ""),
+                f"🧬 بيوتك: {stats['entries'] - stats['no_context']} | كلمة محفز: "
+                f"{stats['entries'] - stats['no_context'] - stats['no_catalyst_kw']}",
+                f"📅 بلا موعد ضمن النافذة: {stats['no_event_date']} | بلا رمز: {stats['no_ticker']} | "
+                f"سعر خارج ${PRICE_MIN:.2f}–${PRICE_MAX:.2f}: {stats['price_rejected']}",
+            ]
+            if near_miss:
+                lines += ["", "👀 أقرب المرفوضات:"] + [f"• {escape_html(x)}" for x in near_miss[:3]]
+            lines.append(f"\n🕒 {run_date.strftime('%Y-%m-%d %H:%M')} UTC")
+            send_telegram("\n".join(lines))
         return seen
 
     found_events.sort(key=lambda e: e["event_date"])
