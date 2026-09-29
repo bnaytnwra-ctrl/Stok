@@ -1,11 +1,15 @@
 name: Stock News Alert Bot
 
-# مصمم ليناسب باقة GitHub المجانية (~81 دقيقة يوميًا ≈ 1700-1860 شهريًا < 2000)
+# ~5.5 ساعة يوميًا. المستودع عام (Public) فدقائق Actions مجانية بلا حد؛ لو حوّلته Private قلّل النوافذ (الحد 2000 دقيقة/شهر)
 on:
   schedule:
-    # قبل الافتتاح: 12:45 UTC = 8:45 نيويورك (صيفًا) — تقويم + فحص لحظي 45 دقيقة
-    - cron: "45 12 * * 1-5"
-    # الإغلاق وبعده: 20:00 UTC = 16:00 نيويورك (صيفًا) — فحص لحظي 30 دقيقة
+    # الجدولة بتوقيت UTC وتغطي التوقيت الصيفي والشتوي معًا؛ خطوة "Decide run"
+    # تتجاهل التشغيلة التي لا تطابق الساعة المطلوبة بتوقيت نيويورك.
+    # النافذة 1: 07:00 → 10:00 نيويورك (بري ماركت + افتتاح السوق) + تقويم المحفزات
+    - cron: "0 11 * * 1-5"
+    - cron: "0 12 * * 1-5"
+    # النافذة 2: 15:00 → 17:30 نيويورك (قبل الإغلاق + الإغلاق + ما بعده)
+    - cron: "0 19 * * 1-5"
     - cron: "0 20 * * 1-5"
   workflow_dispatch:
     inputs:
@@ -30,7 +34,7 @@ concurrency:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 200
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,27 +50,32 @@ jobs:
       - name: Install dependencies
         run: pip install --quiet -r requirements.txt
 
-      - name: Determine run mode
+      - name: Decide run
         id: mode
         run: |
+          ET_HOUR=$(TZ=America/New_York date +%-H)
+          echo "الساعة الآن بنيويورك: $ET_HOUR"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
-            # التشغيل اليدوي: فحص سريع لمرة واحدة (ينتهي خلال دقيقة تقريبًا)
             echo "single=true" >> "$GITHUB_OUTPUT"
             echo "window=30" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "45 12 * * 1-5" ]; then
-            # نافذة ما قبل الافتتاح: تقويم المحفزات + فحص لحظي 45 دقيقة
-            echo "value=both" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 11 * * 1-5" ] || [ "${{ github.event.schedule }}" = "0 12 * * 1-5" ]; then
+            if [ "$ET_HOUR" != "7" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+            END=$(TZ=America/New_York date -d "10:00" +%s)
+            echo "value=both" >> "$GITHUB_OUTPUT"      # تقويم مرة واحدة + فحص لحظي
             echo "single=false" >> "$GITHUB_OUTPUT"
-            echo "window=45" >> "$GITHUB_OUTPUT"
+            echo "window=$(( (END - $(date +%s)) / 60 ))" >> "$GITHUB_OUTPUT"
           else
-            # نافذة الإغلاق: فحص لحظي 30 دقيقة فقط (التقويم صباحًا يكفي)
+            if [ "$ET_HOUR" != "15" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+            END=$(TZ=America/New_York date -d "17:30" +%s)
             echo "value=realtime" >> "$GITHUB_OUTPUT"
             echo "single=false" >> "$GITHUB_OUTPUT"
-            echo "window=30" >> "$GITHUB_OUTPUT"
+            echo "window=$(( (END - $(date +%s)) / 60 ))" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run bot
+        if: steps.mode.outputs.skip != 'true'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN || secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
