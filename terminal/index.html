@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STOK Terminal — منصّة تحليل الوتد الهابط</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23f5a623'/><path d='M6 21l6-8 5 4 9-11' stroke='%23170f05' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="stylesheet" href="css/terminal.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================ الشريط العلوي ============================ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17l5-7 4 3.5L21 4"/><path d="M15 4h6v6"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">STOK</div>
+        <div class="brand-sub">WEDGE TERMINAL</div>
+      </div>
+    </div>
+
+    <div class="search" id="searchBox">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5f6d85" stroke-width="2.2">
+        <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+      </svg>
+      <input id="searchInput" placeholder="ابحث عن رمز…  SOUN / NVDA" autocomplete="off" spellcheck="false">
+      <span class="kbd">/</span>
+      <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <div class="seg" id="tfSeg" title="الإطار الزمني"></div>
+
+    <div class="top-right">
+      <button class="tbtn" id="btnDl" type="button" title="تنزيل نسخة HTML واحدة مستقلة">⬇ تحميل</button>
+      <div class="mkt-status" id="mktStatus"><span class="pulse" id="mktDot"></span><span id="mktText">—</span></div>
+      <div class="clock" id="clock"><b>--:--:--</b><br><span>—</span></div>
+      <button class="icon-btn" id="btnScan" title="إعادة الفحص (R)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button class="icon-btn" id="btnShot" title="تصدير الشارت PNG">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+      </button>
+      <button class="icon-btn" id="btnHelp" title="الاختصارات (?)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a3 3 0 1 1 4 2.8c-.8.3-1.2 1-1.2 1.9v.3"/><circle cx="12" cy="17.4" r=".9" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============================ شريط الأسعار ============================ -->
+  <div class="tape"><div class="tape-track" id="tapeTrack"></div></div>
+
+  <!-- ============================== العمود الأيسر ========================== -->
+  <aside class="col-left">
+    <section class="panel" style="flex:1 1 56%">
+      <div class="panel-head">
+        <h3>قائمة المراقبة</h3><span class="count" id="wlCount">0</span>
+        <span class="sp"></span>
+        <span class="addsym">
+          <input id="addSym" placeholder="أضف رمزًا…" autocomplete="off" spellcheck="false">
+          <button class="tbtn" id="addSymBtn" type="button" title="إضافة الرمز">➕</button>
+        </span>
+        <span class="lbl" style="font-size:8.5px">و. هابط</span>
+      </div>
+      <div class="panel-body" id="watchlist"></div>
+    </section>
+
+    <section class="panel" style="flex:1 1 44%; border-top:1px solid var(--line)">
+      <div class="panel-head">
+        <h3>محفّزات وأخبار</h3><span class="count" id="newsCount">0</span>
+        <span class="sp"></span><span class="lbl" style="font-size:8.5px">بوت تلجرام</span>
+      </div>
+      <div class="panel-body" id="newsFeed"></div>
+    </section>
+  </aside>
+
+  <!-- ============================== الشارت ================================ -->
+  <main class="col-main">
+    <div class="sym-head" id="symHead"></div>
+
+    <div class="chart-tools" id="chartTools">
+      <div class="seg" id="chartType">
+        <button data-v="candles" class="on">شموع</button>
+        <button data-v="hollow">مجوّفة</button>
+        <button data-v="line">خطّي</button>
+      </div>
+      <div class="tool-sep"></div>
+      <button class="tbtn on" id="tEma" title="EMA 9/21/50 + SMA200">EMA</button>
+      <button class="tbtn on" id="tVol">VOLUME</button>
+      <button class="tbtn on" id="tRsi">RSI</button>
+      <button class="tbtn on" id="tWedge">الوتد</button>
+      <button class="tbtn" id="tLog">LOG</button>
+      <div class="tool-sep"></div>
+      <span class="lbl" style="padding-inline:2px">رسم</span>
+      <button class="tbtn" data-tool="trendline" title="خط اتجاه (T)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19L20 5"/></svg>اتجاه</button>
+      <button class="tbtn" data-tool="ray" title="شعاع (Y)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19L14 9"/><path d="M14 9l6-4"/></svg>شعاع</button>
+      <button class="tbtn" data-tool="hline" title="خط أفقي (H)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/></svg>أفقي</button>
+      <button class="tbtn" data-tool="fib" title="فيبوناتشي (F)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 11h18M3 15h18M3 19h18"/></svg>فيبو</button>
+      <button class="tbtn" data-tool="rect" title="منطقة (E)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>منطقة</button>
+      <button class="tbtn" data-tool="measure" title="قياس (M)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20L20 4"/><path d="M4 14v6h6"/></svg>قياس</button>
+      <div class="tool-sep"></div>
+      <button class="tbtn" id="tClear">مسح الرسم</button>
+      <span class="sp" style="margin-inline-start:auto"></span>
+      <button class="tbtn" id="tSet" title="مصدر البيانات (Twelve Data)">⚙ المصدر</button>
+      <button class="tbtn" id="tReset" title="إعادة الضبط (0)">إعادة ضبط</button>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="chart" dir="ltr"></canvas>
+      <div class="chart-badge" id="chartBadge" style="display:none"></div>
+    </div>
+  </main>
+
+  <!-- ============================== العمود الأيمن ========================== -->
+  <aside class="col-right">
+    <section class="panel">
+      <div class="panel-head">
+        <h3 id="sigTitle">إشارة الوتد الهابط</h3>
+        <span class="sp"></span>
+        <span class="seg-mini" id="stratSeg">
+          <button data-st="wedge" class="on">وتد هابط</button>
+          <button data-st="split">تجزئة عكسية</button>
+        </span>
+        <span class="count" id="sigTf">1D</span>
+      </div>
+      <div class="split-meta" id="splitMeta" hidden>
+        <label>تاريخ التجزئة <input type="date" id="splitDate"></label>
+        <label>الفلوت (مليون) <input type="number" step="0.1" id="splitFloat" placeholder="4.5"></label>
+      </div>
+      <div id="signalBody"></div>
+    </section>
+
+    <section class="panel" style="border-top:1px solid var(--line)">
+      <div class="panel-head">
+        <h3>فاحص الوتد</h3><span class="count" id="scanCount">—</span>
+        <span class="sp"></span>
+        <button class="tbtn" id="fetchTV" type="button" title="جلب رموز النظام النشط من TradingView">⚡ TradingView</button>
+        <span class="spin" id="scanSpin" style="display:none"></span>
+      </div>
+      <div class="panel-body" id="scanner" style="max-height:270px"></div>
+    </section>
+  </aside>
+
+  <!-- ============================== شريط الحالة =========================== -->
+  <footer class="statusbar">
+    <span>السوق: <b>أمريكية · تقلبات عالية / تجزئة عكسية</b></span>
+    <span class="sb-sep"></span>
+    <span>مصدر البيانات: <b id="sbSource">محاكاة أوفلاين</b></span>
+    <span class="sb-sep"></span>
+    <span>شموع: <b id="sbBars">0</b></span>
+    <span class="sb-sep"></span>
+    <span>المدى: <b id="sbRange">—</b></span>
+    <span class="sb-sep"></span>
+    <span id="sbCursor">—</span>
+    <span class="sp"></span>
+    <span id="sbTool">الوضع: <b>مؤشر</b></span>
+    <span class="sb-sep"></span>
+    <span>Ctrl+K للأوامر · ? للاختصارات</span>
+  </footer>
+</div>
+
+<!-- ============================== لوحة الأوامر ============================ -->
+<div class="cmdk" id="cmdk">
+  <div class="cmdk-box">
+    <input class="cmdk-input" id="cmdkInput" placeholder="اكتب أمرًا أو رمزًا…" autocomplete="off" spellcheck="false">
+    <div class="cmdk-list" id="cmdkList"></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+  <a class="dl-fab" href="download" download="stok-terminal.html" title="تنزيل نسخة HTML واحدة مستقلة">⬇ حمّل ملف HTML</a>
+
+  <!-- ============================ لوحة مصدر البيانات ====================== -->
+  <div class="settings" id="setPanel" hidden>
+    <div class="set-card">
+      <button class="set-x" id="setCloseTop" type="button">✕</button>
+      <h3>مصدر البيانات (Twelve Data)</h3>
+      <label>مفتاح API <input id="ak" type="password" autocomplete="off"></label>
+      <label>CORS Proxy (اختياري) <input id="px" autocomplete="off"></label>
+      <label>المخاطرة لكل صفقة ($) <input id="rk" type="number" min="1"></label>
+      <div class="set-actions">
+        <button class="tbtn on" id="setSave">💾 حفظ</button>
+        <button class="tbtn" id="setClose">✕ إغلاق</button>
+      </div>
+      <p class="set-note">بدون مفتاح تُستخدم بيانات تجريبية حتمية (محاكاة أوفلاين). في متصفّحك الذي يملك إنترنت يُفعَّل المصدر الحيّ فور حفظ المفتاح (حد 8 طلبات/دقيقة).</p>
+    </div>
+  </div>
+
+  <!-- سكربت مضمّن مستقل: يغلق/يفتح/يحفظ لوحة المصدر حتى لو تعذّر app.js -->
+  <script>
+  (function () {
+    var p = document.getElementById('setPanel');
+    if (!p) return;
+    function show(v) { p.hidden = !v; p.style.display = v ? 'flex' : 'none'; }
+    function fill() {
+      document.getElementById('ak').value = localStorage.getItem('twelve_data_api_key') || '';
+      document.getElementById('px').value = localStorage.getItem('twelve_data_proxy') || '';
+      document.getElementById('rk').value = localStorage.getItem('risk_usd') || 50;
+    }
+    ['setClose','setCloseTop'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (b) b.addEventListener('click', function (e) { e.stopPropagation(); show(false); });
+    });
+    p.addEventListener('click', function (e) { if (e.target === p) show(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') show(false); });
+    var t = document.getElementById('tSet');
+    if (t) t.addEventListener('click', function () { var v = p.hidden; show(v); if (v) fill(); });
+    var sv = document.getElementById('setSave');
+    if (sv) sv.addEventListener('click', function () {
+      localStorage.setItem('twelve_data_api_key', (document.getElementById('ak').value || '').trim());
+      localStorage.setItem('twelve_data_proxy', (document.getElementById('px').value || '').trim());
+      localStorage.setItem('risk_usd', document.getElementById('rk').value || 50);
+      show(false);
+    });
+  })();
+  </script>
+
+<script src="js/market.js"></script>
+<script src="js/indicators.js"></script>
+<script src="js/wedge.js"></script>
+<script src="js/split.js"></script>
+<script src="js/chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

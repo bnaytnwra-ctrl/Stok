@@ -1,0 +1,3274 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STOK Terminal — منصّة تحليل الوتد الهابط</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23f5a623'/><path d='M6 21l6-8 5 4 9-11' stroke='%23170f05' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<style>
+[hidden]{display:none!important}
+/* =============================================================================
+ * terminal.css — نظام تصميم منصّة التداول
+ * داكن كثيف، حدود رفيعة، أرقام بأحرف ثابتة العرض (tabular) — بأسلوب
+ * Bloomberg / TradingView Dark.
+ * ========================================================================== */
+
+:root {
+  --bg-0: #05070b;
+  --bg-1: #080b11;
+  --bg-2: #0b0f16;
+  --bg-3: #101722;
+  --bg-4: #16202e;
+  --line: #161d29;
+  --line-2: #1e2836;
+  --line-3: #2a3648;
+  --txt-0: #e6edf7;
+  --txt-1: #98a5bb;
+  --txt-2: #5f6d85;
+  --txt-3: #3f4b60;
+  --up: #12c48b;
+  --up-dim: rgba(18, 196, 139, .14);
+  --down: #f0455a;
+  --down-dim: rgba(240, 69, 90, .14);
+  --amber: #f5a623;
+  --cyan: #22d3ee;
+  --blue: #3b82f6;
+  --violet: #a78bfa;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Arabic", Tahoma, Roboto, sans-serif;
+  --r: 3px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg-0);
+  color: var(--txt-0);
+  font-family: var(--ui);
+  font-size: 12px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--line-3); }
+
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.mono { font-family: var(--mono); }
+
+.lbl {
+  font-size: 9px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--txt-2); font-weight: 600;
+}
+
+/* ================================ الهيكل ================================= */
+.app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 42px 30px minmax(0, 1fr) 24px;
+  grid-template-columns: 266px minmax(0, 1fr) 322px;
+  grid-template-areas:
+    "top   top   top"
+    "tape  tape  tape"
+    "left  main  right"
+    "stat  stat  stat";
+}
+
+/* ================================ الشريط العلوي =========================== */
+.topbar {
+  grid-area: top;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 12px;
+  background: linear-gradient(180deg, #0a0e16, #070a10);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 9px; padding-inline-end: 6px; }
+.brand-mark {
+  width: 24px; height: 24px; border-radius: 4px;
+  background: linear-gradient(135deg, var(--amber), #b45309);
+  display: grid; place-items: center;
+  box-shadow: 0 0 14px rgba(245, 166, 35, .28);
+}
+.brand-mark svg { width: 15px; height: 15px; }
+.brand-name {
+  font-size: 13px; font-weight: 800; letter-spacing: .16em;
+  background: linear-gradient(90deg, #fff, #8fa3c0);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.brand-sub { font-size: 8.5px; letter-spacing: .22em; color: var(--txt-3); margin-top: -1px; }
+
+.search {
+  position: relative; display: flex; align-items: center; gap: 7px;
+  background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r);
+  padding: 0 9px; height: 26px; width: 250px;
+  transition: border-color .12s, box-shadow .12s;
+}
+.search:focus-within { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(245, 166, 35, .12); }
+.search input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--txt-0); font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em;
+}
+.search input::placeholder { color: var(--txt-3); letter-spacing: .02em; }
+.kbd {
+  font-family: var(--mono); font-size: 9px; color: var(--txt-2);
+  border: 1px solid var(--line-2); border-radius: 2px; padding: 1px 4px; background: var(--bg-3);
+}
+.search-results {
+  position: absolute; top: 30px; inset-inline-start: 0; width: 300px; z-index: 60;
+  background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .65); overflow: hidden; display: none;
+}
+.search-results.open { display: block; }
+.sr-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 10px; cursor: pointer; border-bottom: 1px solid var(--line);
+}
+.sr-item:hover, .sr-item.sel { background: var(--bg-4); }
+.sr-item .t { font-family: var(--mono); font-weight: 700; font-size: 11.5px; }
+.sr-item .n { color: var(--txt-2); font-size: 10.5px; }
+
+.top-right { margin-inline-start: auto; display: flex; align-items: center; gap: 10px; }
+.mkt-status {
+  display: flex; align-items: center; gap: 6px; font-size: 10px;
+  color: var(--txt-1); font-family: var(--mono);
+  background: var(--bg-2); border: 1px solid var(--line-2);
+  border-radius: var(--r); padding: 4px 9px;
+}
+.pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 0 rgba(18, 196, 139, .6); animation: pulse 2s infinite; }
+.pulse.off { background: var(--txt-3); animation: none; box-shadow: none; }
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(18, 196, 139, .55); }
+  70% { box-shadow: 0 0 0 6px rgba(18, 196, 139, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(18, 196, 139, 0); }
+}
+.clock { font-family: var(--mono); font-size: 10.5px; color: var(--txt-1); text-align: end; line-height: 1.35; }
+.clock b { color: var(--txt-0); font-weight: 600; letter-spacing: .04em; }
+.clock span { color: var(--txt-3); font-size: 9px; }
+
+.icon-btn {
+  width: 26px; height: 26px; display: grid; place-items: center;
+  background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r);
+  color: var(--txt-1); cursor: pointer; transition: .12s;
+}
+.icon-btn:hover { background: var(--bg-4); color: var(--txt-0); border-color: var(--line-3); }
+.icon-btn svg { width: 14px; height: 14px; }
+
+/* ================================ شريط الأسعار =========================== */
+.tape {
+  grid-area: tape;
+  display: flex; align-items: center; overflow: hidden;
+  background: var(--bg-1); border-bottom: 1px solid var(--line);
+  position: relative;
+}
+.tape::after {
+  content: ''; position: absolute; inset-block: 0; inset-inline-end: 0; width: 60px;
+  background: linear-gradient(90deg, transparent, var(--bg-1));
+  pointer-events: none;
+}
+.tape-track { display: flex; gap: 0; animation: tape 68s linear infinite; white-space: nowrap; }
+.tape:hover .tape-track { animation-play-state: paused; }
+@keyframes tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.tape-item {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  padding: 0 16px; border-inline-end: 1px solid var(--line);
+  cursor: pointer; height: 30px; line-height: 30px;
+}
+.tape-item:hover { background: var(--bg-3); }
+.tape-item .s { font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--txt-0); letter-spacing: .04em; }
+.tape-item .p { font-family: var(--mono); font-size: 10.5px; color: var(--txt-1); }
+.tape-item .c { font-family: var(--mono); font-size: 10px; font-weight: 600; }
+
+/* ================================ الأعمدة ================================ */
+.col-left { grid-area: left; display: flex; flex-direction: column; min-height: 0; border-inline-end: 1px solid var(--line); background: var(--bg-1); }
+.col-main { grid-area: main; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg-0); }
+.col-right { grid-area: right; display: flex; flex-direction: column; min-height: 0; border-inline-start: 1px solid var(--line); background: var(--bg-1); overflow-y: auto; }
+
+.panel { display: flex; flex-direction: column; min-height: 0; }
+.panel-head {
+  display: flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 10px; flex: 0 0 auto;
+  border-bottom: 1px solid var(--line); background: var(--bg-2);
+}
+.panel-head h3 {
+  font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--txt-1); font-weight: 700;
+}
+.panel-head .count {
+  font-family: var(--mono); font-size: 9px; color: var(--txt-3);
+  border: 1px solid var(--line-2); border-radius: 8px; padding: 0 5px;
+}
+.panel-head .sp { margin-inline-start: auto; }
+.panel-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+
+/* ================================ قائمة المراقبة ========================= */
+.wl-row {
+  display: grid; grid-template-columns: 1fr 62px 66px;
+  align-items: center; gap: 6px;
+  padding: 6px 10px; cursor: pointer;
+  border-bottom: 1px solid rgba(22, 29, 41, .6);
+  border-inline-start: 2px solid transparent;
+  transition: background .1s;
+}
+.wl-row:hover { background: var(--bg-3); }
+.wl-row.active { background: var(--bg-4); border-inline-start-color: var(--amber); }
+.wl-sym { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .03em; display: flex; align-items: center; gap: 5px; }
+.wl-name { font-size: 9.5px; color: var(--txt-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl-price { text-align: end; font-family: var(--mono); font-size: 11px; color: var(--txt-0); }
+.wl-chg { text-align: end; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+.wl-spark { grid-column: 1 / -1; height: 16px; margin-top: 1px; opacity: .8; }
+.up { color: var(--up); } .down { color: var(--down); }
+.chip {
+  font-size: 8px; font-weight: 700; letter-spacing: .04em; padding: 1px 4px;
+  border-radius: 2px; background: var(--bg-4); color: var(--txt-2);
+}
+.chip.w { background: rgba(245, 166, 35, .16); color: var(--amber); }
+.chip.b { background: rgba(18, 196, 139, .16); color: var(--up); }
+.chip.f { background: rgba(240, 69, 90, .16); color: var(--down); }
+
+/* ================================ رأس الرمز ============================== */
+.sym-head {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+}
+.sym-id { display: flex; align-items: baseline; gap: 9px; }
+.sym-ticker { font-size: 19px; font-weight: 800; letter-spacing: .04em; font-family: var(--mono); }
+.sym-name { font-size: 11px; color: var(--txt-2); }
+.sym-price { font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.sym-chg { font-family: var(--mono); font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+.sym-stats { display: flex; gap: 14px; margin-inline-start: auto; flex-wrap: wrap; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .k { font-size: 8.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--txt-3); font-weight: 600; }
+.stat .v { font-family: var(--mono); font-size: 11px; color: var(--txt-1); }
+
+/* ================================ أدوات الشارت =========================== */
+.chart-tools {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-bottom: 1px solid var(--line);
+  background: var(--bg-1); flex-wrap: wrap;
+}
+.seg { display: flex; border: 1px solid var(--line-2); border-radius: var(--r); overflow: hidden; background: var(--bg-2); }
+.seg button {
+  background: none; border: none; color: var(--txt-2); cursor: pointer;
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .04em;
+  padding: 4px 8px; transition: .1s; border-inline-end: 1px solid var(--line);
+}
+.seg button:last-child { border-inline-end: none; }
+.seg button:hover { background: var(--bg-4); color: var(--txt-0); }
+.seg button.on { background: var(--amber); color: #17110a; }
+.tbtn {
+  background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r);
+  color: var(--txt-2); cursor: pointer; padding: 4px 8px;
+  font-size: 10px; font-weight: 600; letter-spacing: .03em; transition: .1s;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.tbtn:hover { background: var(--bg-4); color: var(--txt-0); }
+.tbtn.on { background: rgba(59, 130, 246, .16); border-color: var(--blue); color: #93c5fd; }
+.tbtn svg { width: 12px; height: 12px; }
+.tool-sep { width: 1px; height: 18px; background: var(--line-2); margin: 0 3px; }
+
+.chart-wrap { flex: 1 1 auto; position: relative; min-height: 0; }
+.chart-wrap canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+.chart-badge {
+  position: absolute; top: 8px; inset-inline-end: 74px; z-index: 5;
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .06em;
+  padding: 3px 8px; border-radius: 2px;
+  background: rgba(245, 166, 35, .12); border: 1px solid rgba(245, 166, 35, .35); color: var(--amber);
+}
+.chart-badge.brk { background: rgba(18, 196, 139, .13); border-color: rgba(18, 196, 139, .4); color: var(--up); }
+.chart-badge.fail { background: rgba(240, 69, 90, .13); border-color: rgba(240, 69, 90, .4); color: var(--down); }
+
+/* ================================ لوحة الإشارة =========================== */
+.signal-hero {
+  padding: 12px 12px 10px;
+  background: linear-gradient(180deg, rgba(245, 166, 35, .07), transparent);
+  border-bottom: 1px solid var(--line);
+}
+.signal-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.signal-title { font-size: 13px; font-weight: 800; letter-spacing: .01em; }
+.signal-sub { font-size: 10px; color: var(--txt-2); margin-top: 2px; }
+.grade {
+  font-family: var(--mono); font-size: 20px; font-weight: 800; line-height: 1;
+  padding: 4px 9px; border-radius: 3px; letter-spacing: .02em;
+}
+.grade.A { background: rgba(18, 196, 139, .15); color: var(--up); border: 1px solid rgba(18, 196, 139, .4); }
+.grade.B { background: rgba(34, 211, 238, .13); color: var(--cyan); border: 1px solid rgba(34, 211, 238, .35); }
+.grade.C { background: rgba(245, 166, 35, .13); color: var(--amber); border: 1px solid rgba(245, 166, 35, .35); }
+.grade.D { background: rgba(240, 69, 90, .13); color: var(--down); border: 1px solid rgba(240, 69, 90, .35); }
+
+.gauge { margin-top: 11px; }
+.gauge-bar { height: 5px; background: var(--bg-4); border-radius: 3px; overflow: hidden; position: relative; }
+.gauge-fill { height: 100%; border-radius: 3px; transition: width .5s cubic-bezier(.4, 0, .2, 1); }
+.gauge-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+.gauge-val { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 10px;
+}
+.status-forming { background: rgba(245, 166, 35, .14); color: var(--amber); }
+.status-breakout, .status-running { background: rgba(18, 196, 139, .16); color: var(--up); }
+.status-extended { background: rgba(59, 130, 246, .14); color: #93c5fd; }
+.status-failed { background: rgba(240, 69, 90, .15); color: var(--down); }
+
+.sec { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.sec-title {
+  font-size: 9px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--txt-3); font-weight: 700; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 7px;
+}
+.sec-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+.trade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tcell {
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 7px 9px; position: relative; overflow: hidden;
+}
+.tcell::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 2px; }
+.tcell.entry::before { background: var(--blue); }
+.tcell.stop::before { background: var(--down); }
+.tcell.t1::before, .tcell.t2::before, .tcell.t3::before { background: var(--up); }
+.tcell .k { font-size: 8.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--txt-3); font-weight: 700; }
+.tcell .v { font-family: var(--mono); font-size: 14px; font-weight: 700; margin-top: 2px; }
+.tcell .s { font-family: var(--mono); font-size: 9px; color: var(--txt-2); margin-top: 1px; }
+.tcell.wide { grid-column: 1 / -1; }
+
+.kv { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+.kv .k { font-size: 10.5px; color: var(--txt-2); }
+.kv .v { font-family: var(--mono); font-size: 11px; color: var(--txt-0); font-weight: 600; }
+
+.checklist { display: flex; flex-direction: column; gap: 5px; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--txt-2); }
+.chk .box {
+  width: 13px; height: 13px; border-radius: 2px; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 9px; font-weight: 800;
+  border: 1px solid var(--line-3); color: transparent;
+}
+.chk.ok { color: var(--txt-0); }
+.chk.ok .box { background: rgba(18, 196, 139, .16); border-color: rgba(18, 196, 139, .5); color: var(--up); }
+.chk.no .box { background: rgba(240, 69, 90, .1); border-color: rgba(240, 69, 90, .35); color: var(--down); }
+.chk .n { font-family: var(--mono); font-size: 9.5px; color: var(--txt-3); margin-inline-start: auto; }
+
+/* ================================ الفاحص ================================ */
+.scan-row {
+  display: grid; grid-template-columns: 1fr auto auto;
+  align-items: center; gap: 8px;
+  padding: 6px 10px; cursor: pointer; border-bottom: 1px solid rgba(22, 29, 41, .6);
+}
+.scan-row:hover { background: var(--bg-3); }
+.scan-sym { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.scan-meta { font-size: 9px; color: var(--txt-3); display: flex; gap: 6px; margin-top: 1px; }
+.conf-bar { width: 46px; height: 3px; background: var(--bg-4); border-radius: 2px; overflow: hidden; }
+.conf-bar i { display: block; height: 100%; }
+.conf-num { font-family: var(--mono); font-size: 10.5px; font-weight: 700; width: 28px; text-align: end; }
+
+/* ================================ المحفزات =============================== */
+.news-item {
+  padding: 7px 10px; border-bottom: 1px solid rgba(22, 29, 41, .6); cursor: pointer;
+}
+.news-item:hover { background: var(--bg-3); }
+.news-top { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.news-t { font-family: var(--mono); font-size: 10.5px; font-weight: 700; }
+.news-src { font-size: 8.5px; color: var(--txt-3); font-family: var(--mono); }
+.news-ago { font-size: 8.5px; color: var(--txt-3); margin-inline-start: auto; font-family: var(--mono); }
+.news-title { font-size: 10.5px; color: var(--txt-1); line-height: 1.45; }
+.dots { display: inline-flex; gap: 2px; }
+.dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--line-3); }
+.dots i.on { background: var(--amber); }
+
+/* ================================ شريط الحالة ============================ */
+.statusbar {
+  grid-area: stat;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 12px; background: var(--bg-2); border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 9.5px; color: var(--txt-2);
+}
+.statusbar .sp { margin-inline-start: auto; }
+.statusbar b { color: var(--txt-1); font-weight: 600; }
+.sb-sep { width: 1px; height: 12px; background: var(--line-2); }
+
+/* ================================ لوحة الأوامر =========================== */
+.cmdk {
+  position: fixed; inset: 0; z-index: 100; display: none;
+  background: rgba(3, 5, 9, .72); backdrop-filter: blur(3px);
+  align-items: flex-start; justify-content: center; padding-top: 14vh;
+}
+.cmdk.open { display: flex; }
+.cmdk-box {
+  width: min(560px, 92vw); background: var(--bg-2);
+  border: 1px solid var(--line-3); border-radius: 6px; overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .7);
+}
+.cmdk-input {
+  width: 100%; background: none; border: none; outline: none;
+  color: var(--txt-0); font-size: 14px; padding: 13px 16px;
+  border-bottom: 1px solid var(--line); font-family: var(--mono);
+}
+.cmdk-list { max-height: 52vh; overflow-y: auto; }
+.cmdk-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer;
+  border-bottom: 1px solid rgba(22, 29, 41, .5);
+}
+.cmdk-item.sel { background: var(--bg-4); }
+.cmdk-item .ic { width: 16px; text-align: center; color: var(--txt-3); font-size: 11px; }
+.cmdk-item .tx { flex: 1; font-size: 12px; }
+.cmdk-item .hint { font-family: var(--mono); font-size: 9.5px; color: var(--txt-3); }
+
+/* ================================ تنبيه (Toast) ========================== */
+.toasts { position: fixed; bottom: 34px; inset-inline-end: 14px; z-index: 90; display: flex; flex-direction: column; gap: 7px; }
+.toast {
+  background: var(--bg-3); border: 1px solid var(--line-3); border-inline-start: 2px solid var(--amber);
+  border-radius: var(--r); padding: 8px 12px; min-width: 220px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55); animation: slidein .22s ease-out;
+}
+.toast.ok { border-inline-start-color: var(--up); }
+.toast.err { border-inline-start-color: var(--down); }
+.toast .t { font-size: 11px; font-weight: 700; }
+.toast .d { font-size: 10px; color: var(--txt-2); margin-top: 2px; }
+@keyframes slidein { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.empty { padding: 22px 14px; text-align: center; color: var(--txt-3); font-size: 10.5px; line-height: 1.6; }
+.spin {
+  width: 12px; height: 12px; border: 1.5px solid var(--line-3); border-top-color: var(--amber);
+  border-radius: 50%; animation: spin .7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 1280px) {
+  .app { grid-template-columns: 224px minmax(0, 1fr) 286px; }
+  .sym-stats { display: none; }
+}
+
+/* ---------- مبدّل الاستراتيجية + مدخلات التجزئة + لوحة المصدر ---------- */
+.seg-mini{display:inline-flex;gap:2px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:2px}
+.seg-mini button{border:0;background:transparent;color:var(--txt-3);font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer}
+.seg-mini button.on{background:var(--accent);color:#081018;font-weight:700}
+.split-meta{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.split-meta label{font-size:10px;color:var(--txt-3);display:flex;flex-direction:column;gap:3px;flex:1}
+.split-meta input{background:var(--bg-2);border:1px solid var(--line);border-radius:5px;color:var(--txt-1);padding:4px 6px;font-size:11px}
+.settings{position:fixed;inset:0;background:rgba(4,8,16,.6);display:flex;align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(3px)}
+.set-card{width:min(420px,92vw);background:var(--bg-1);border:1px solid var(--line);border-radius:12px;padding:18px}
+.set-card h3{font-size:14px;margin-bottom:12px;color:var(--txt-1)}
+.set-card label{display:block;font-size:11px;color:var(--txt-3);margin-bottom:10px}
+.set-card input{display:block;width:100%;margin-top:4px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;color:var(--txt-1);padding:7px 9px;font-size:12px}
+.set-actions{display:flex;gap:8px;margin:6px 0 10px}
+.set-note{font-size:10.5px;color:var(--txt-3);line-height:1.7}
+.ck-row{display:flex;justify-content:space-between;gap:8px;padding:6px 9px;margin-bottom:5px;border-radius:7px;border:1px solid var(--line);background:var(--bg-2);font-size:11px}
+.ck-row.ok{border-color:rgba(46,189,133,.5)}.ck-row.bad{border-color:rgba(246,70,93,.5)}
+.ck-row b{white-space:nowrap}.ck-row.ok b{color:var(--up)}.ck-row.bad b{color:var(--down)}
+
+/* لوحة المصدر: قابلة للتمرير وزر الإغلاق لاصق أعلى البطاقة */
+.settings{overflow:auto;padding:16px}
+.set-card{max-height:92vh;overflow:auto}
+.set-x{position:sticky;top:0;float:left;z-index:2;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;color:var(--txt-3);padding:2px 10px;cursor:pointer;font-size:13px}
+.set-x:hover{color:var(--down);border-color:var(--down)}
+
+.addsym{display:inline-flex;gap:3px;align-items:center}
+.addsym input{width:76px;background:var(--bg-2);border:1px solid var(--line);border-radius:5px;color:var(--txt-1);padding:3px 6px;font-size:10px}
+.addsym .tbtn{padding:2px 7px;font-size:10px}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================ الشريط العلوي ============================ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17l5-7 4 3.5L21 4"/><path d="M15 4h6v6"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">STOK</div>
+        <div class="brand-sub">WEDGE TERMINAL</div>
+      </div>
+    </div>
+
+    <div class="search" id="searchBox">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5f6d85" stroke-width="2.2">
+        <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+      </svg>
+      <input id="searchInput" placeholder="ابحث عن رمز…  SOUN / NVDA" autocomplete="off" spellcheck="false">
+      <span class="kbd">/</span>
+      <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <div class="seg" id="tfSeg" title="الإطار الزمني"></div>
+
+    <div class="top-right">
+      <div class="mkt-status" id="mktStatus"><span class="pulse" id="mktDot"></span><span id="mktText">—</span></div>
+      <div class="clock" id="clock"><b>--:--:--</b><br><span>—</span></div>
+      <button class="icon-btn" id="btnScan" title="إعادة الفحص (R)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button class="icon-btn" id="btnShot" title="تصدير الشارت PNG">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+      </button>
+      <button class="icon-btn" id="btnHelp" title="الاختصارات (?)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a3 3 0 1 1 4 2.8c-.8.3-1.2 1-1.2 1.9v.3"/><circle cx="12" cy="17.4" r=".9" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============================ شريط الأسعار ============================ -->
+  <div class="tape"><div class="tape-track" id="tapeTrack"></div></div>
+
+  <!-- ============================== العمود الأيسر ========================== -->
+  <aside class="col-left">
+    <section class="panel" style="flex:1 1 56%">
+      <div class="panel-head">
+        <h3>قائمة المراقبة</h3><span class="count" id="wlCount">0</span>
+        <span class="sp"></span>
+        <span class="addsym">
+          <input id="addSym" placeholder="أضف رمزًا…" autocomplete="off" spellcheck="false">
+          <button class="tbtn" id="addSymBtn" type="button" title="إضافة الرمز">➕</button>
+        </span>
+        <span class="lbl" style="font-size:8.5px">و. هابط</span>
+      </div>
+      <div class="panel-body" id="watchlist"></div>
+    </section>
+
+    <section class="panel" style="flex:1 1 44%; border-top:1px solid var(--line)">
+      <div class="panel-head">
+        <h3>محفّزات وأخبار</h3><span class="count" id="newsCount">0</span>
+        <span class="sp"></span><span class="lbl" style="font-size:8.5px">بوت تلجرام</span>
+      </div>
+      <div class="panel-body" id="newsFeed"></div>
+    </section>
+  </aside>
+
+  <!-- ============================== الشارت ================================ -->
+  <main class="col-main">
+    <div class="sym-head" id="symHead"></div>
+
+    <div class="chart-tools" id="chartTools">
+      <div class="seg" id="chartType">
+        <button data-v="candles" class="on">شموع</button>
+        <button data-v="hollow">مجوّفة</button>
+        <button data-v="line">خطّي</button>
+      </div>
+      <div class="tool-sep"></div>
+      <button class="tbtn on" id="tEma" title="EMA 9/21/50 + SMA200">EMA</button>
+      <button class="tbtn on" id="tVol">VOLUME</button>
+      <button class="tbtn on" id="tRsi">RSI</button>
+      <button class="tbtn on" id="tWedge">الوتد</button>
+      <button class="tbtn" id="tLog">LOG</button>
+      <div class="tool-sep"></div>
+      <span class="lbl" style="padding-inline:2px">رسم</span>
+      <button class="tbtn" data-tool="trendline" title="خط اتجاه (T)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19L20 5"/></svg>اتجاه</button>
+      <button class="tbtn" data-tool="ray" title="شعاع (Y)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19L14 9"/><path d="M14 9l6-4"/></svg>شعاع</button>
+      <button class="tbtn" data-tool="hline" title="خط أفقي (H)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/></svg>أفقي</button>
+      <button class="tbtn" data-tool="fib" title="فيبوناتشي (F)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 11h18M3 15h18M3 19h18"/></svg>فيبو</button>
+      <button class="tbtn" data-tool="rect" title="منطقة (E)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>منطقة</button>
+      <button class="tbtn" data-tool="measure" title="قياس (M)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20L20 4"/><path d="M4 14v6h6"/></svg>قياس</button>
+      <div class="tool-sep"></div>
+      <button class="tbtn" id="tClear">مسح الرسم</button>
+      <span class="sp" style="margin-inline-start:auto"></span>
+      <button class="tbtn" id="tSet" title="مصدر البيانات (Twelve Data)">⚙ المصدر</button>
+      <button class="tbtn" id="tReset" title="إعادة الضبط (0)">إعادة ضبط</button>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="chart" dir="ltr"></canvas>
+      <div class="chart-badge" id="chartBadge" style="display:none"></div>
+    </div>
+  </main>
+
+  <!-- ============================== العمود الأيمن ========================== -->
+  <aside class="col-right">
+    <section class="panel">
+      <div class="panel-head">
+        <h3 id="sigTitle">إشارة الوتد الهابط</h3>
+        <span class="sp"></span>
+        <span class="seg-mini" id="stratSeg">
+          <button data-st="wedge" class="on">وتد هابط</button>
+          <button data-st="split">تجزئة عكسية</button>
+        </span>
+        <span class="count" id="sigTf">1D</span>
+      </div>
+      <div class="split-meta" id="splitMeta" hidden>
+        <label>تاريخ التجزئة <input type="date" id="splitDate"></label>
+        <label>الفلوت (مليون) <input type="number" step="0.1" id="splitFloat" placeholder="4.5"></label>
+      </div>
+      <div id="signalBody"></div>
+    </section>
+
+    <section class="panel" style="border-top:1px solid var(--line)">
+      <div class="panel-head">
+        <h3>فاحص الوتد</h3><span class="count" id="scanCount">—</span>
+        <span class="sp"></span>
+        <button class="tbtn" id="fetchTV" type="button" title="جلب رموز النظام النشط من TradingView">⚡ TradingView</button>
+        <span class="spin" id="scanSpin" style="display:none"></span>
+      </div>
+      <div class="panel-body" id="scanner" style="max-height:270px"></div>
+    </section>
+  </aside>
+
+  <!-- ============================== شريط الحالة =========================== -->
+  <footer class="statusbar">
+    <span>السوق: <b>أمريكية · تقلبات عالية / تجزئة عكسية</b></span>
+    <span class="sb-sep"></span>
+    <span>مصدر البيانات: <b id="sbSource">محاكاة أوفلاين</b></span>
+    <span class="sb-sep"></span>
+    <span>شموع: <b id="sbBars">0</b></span>
+    <span class="sb-sep"></span>
+    <span>المدى: <b id="sbRange">—</b></span>
+    <span class="sb-sep"></span>
+    <span id="sbCursor">—</span>
+    <span class="sp"></span>
+    <span id="sbTool">الوضع: <b>مؤشر</b></span>
+    <span class="sb-sep"></span>
+    <span>Ctrl+K للأوامر · ? للاختصارات</span>
+  </footer>
+</div>
+
+<!-- ============================== لوحة الأوامر ============================ -->
+<div class="cmdk" id="cmdk">
+  <div class="cmdk-box">
+    <input class="cmdk-input" id="cmdkInput" placeholder="اكتب أمرًا أو رمزًا…" autocomplete="off" spellcheck="false">
+    <div class="cmdk-list" id="cmdkList"></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+  <!-- ============================ لوحة مصدر البيانات ====================== -->
+  <div class="settings" id="setPanel" hidden>
+    <div class="set-card">
+      <button class="set-x" id="setCloseTop" type="button">✕</button>
+      <h3>مصدر البيانات (Twelve Data)</h3>
+      <label>مفتاح API <input id="ak" type="password" autocomplete="off"></label>
+      <label>CORS Proxy (اختياري) <input id="px" autocomplete="off"></label>
+      <label>المخاطرة لكل صفقة ($) <input id="rk" type="number" min="1"></label>
+      <div class="set-actions">
+        <button class="tbtn on" id="setSave">💾 حفظ</button>
+        <button class="tbtn" id="setClose">✕ إغلاق</button>
+      </div>
+      <p class="set-note">بدون مفتاح تُستخدم بيانات تجريبية حتمية (محاكاة أوفلاين). في متصفّحك الذي يملك إنترنت يُفعَّل المصدر الحيّ فور حفظ المفتاح (حد 8 طلبات/دقيقة).</p>
+    </div>
+  </div>
+
+  <!-- سكربت مضمّن مستقل: يغلق/يفتح/يحفظ لوحة المصدر حتى لو تعذّر app.js -->
+  <script>
+  (function () {
+    var p = document.getElementById('setPanel');
+    if (!p) return;
+    function show(v) { p.hidden = !v; p.style.display = v ? 'flex' : 'none'; }
+    function fill() {
+      document.getElementById('ak').value = localStorage.getItem('twelve_data_api_key') || '';
+      document.getElementById('px').value = localStorage.getItem('twelve_data_proxy') || '';
+      document.getElementById('rk').value = localStorage.getItem('risk_usd') || 50;
+    }
+    ['setClose','setCloseTop'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (b) b.addEventListener('click', function (e) { e.stopPropagation(); show(false); });
+    });
+    p.addEventListener('click', function (e) { if (e.target === p) show(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') show(false); });
+    var t = document.getElementById('tSet');
+    if (t) t.addEventListener('click', function () { var v = p.hidden; show(v); if (v) fill(); });
+    var sv = document.getElementById('setSave');
+    if (sv) sv.addEventListener('click', function () {
+      localStorage.setItem('twelve_data_api_key', (document.getElementById('ak').value || '').trim());
+      localStorage.setItem('twelve_data_proxy', (document.getElementById('px').value || '').trim());
+      localStorage.setItem('risk_usd', document.getElementById('rk').value || 50);
+      show(false);
+    });
+  })();
+  </script>
+
+<script>
+/* =============================================================================
+ * market.js — محرك بيانات السوق (Market Data Engine)
+ * -----------------------------------------------------------------------------
+ * مصدر واحد على دقة الدقيقة (1-min) ثم تجميع لكل الأطر الزمنية
+ * (1m/5m/15m/1H/4H/1D/1W) — كما تفعل منصات التداول الحقيقية.
+ *
+ * المحاكاة تعمل في فضاء log(price) بثلاثة أطوار:
+ *   trend : مشي عشوائي مع تقلّب عائد للمتوسط (volatility clustering)
+ *   wedge : وتد هابط منحات هندسيًا — مركز هابط بخط مستقيم + نصف عرض يتقلّص
+ *           خطيًا + مذبذب جيبي مزدوج يلمس الحدّين -> خطّان حقيقيان
+ *   break : اختراق صاعد بحجم مرتفع
+ *
+ * بلا أي تبعيات خارجية — يعمل أوفلاين بالكامل وبنتائج حتمية (deterministic).
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  /* ------------------------------ PRNG حتمي ------------------------------ */
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hashStr(s) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function makeGauss(rand) {
+    let spare = null;
+    return function () {
+      if (spare !== null) { const v = spare; spare = null; return v; }
+      let u = 0, v = 0, s = 0;
+      do { u = rand() * 2 - 1; v = rand() * 2 - 1; s = u * u + v * v; } while (s >= 1 || s === 0);
+      const m = Math.sqrt(-2 * Math.log(s) / s);
+      spare = v * m; return u * m;
+    };
+  }
+
+  /* ------------------------------ الجلسات -------------------------------- */
+  const MIN_PER_SESSION = 390;             // 09:30 -> 16:00 ET
+  const SESSION_OPEN_MIN = 13 * 60 + 30;   // 13:30 UTC (EDT)
+  const TRADING_DAYS = 300;
+  const isWeekend = d => { const w = d.getUTCDay(); return w === 0 || w === 6; };
+
+  function buildSessionStamps(days) {
+    const out = [];
+    const cur = new Date(Date.UTC(2026, 9, 2));      // 2026-10-02 (جمعة)
+    cur.setUTCHours(0, 0, 0, 0);
+    let taken = 0;
+    while (taken < days) {
+      if (!isWeekend(cur)) {
+        const base = Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth(), cur.getUTCDate());
+        for (let m = 0; m < MIN_PER_SESSION; m++) out.push(base + (SESSION_OPEN_MIN + m) * 60000);
+        taken++;
+      }
+      cur.setUTCDate(cur.getUTCDate() - 1);
+    }
+    return out.reverse();
+  }
+  const STAMPS = buildSessionStamps(TRADING_DAYS);
+  const TOTAL_MIN = STAMPS.length;
+
+  /* ============================== الرموز ================================== */
+  /**
+   * T(days, mu, sigma, volMult)              طور اتجاه عادي
+   * W(days, mu, sigma, volMult, contraction) طور وتد هابط (يُنحت هندسيًا)
+   * B(days, mu, sigma, volMult)              طور اختراق صاعد
+   * mu/sigma بوحدات log(price) لكل يوم تداول
+   */
+  const T = (d, mu, sg, vm) => ({ d, mode: 'trend', mu, sg, vm });
+  const W = (d, mu, sg, vm, ct, jt) => ({ d, mode: 'wedge', mu, sg, vm, ct: ct == null ? 0.75 : ct, jt: jt == null ? 1.0 : jt });
+  const B = (d, mu, sg, vm) => ({ d, mode: 'break', mu, sg, vm });
+
+  const SYMBOLS = [
+    { t: 'SOUN', name: 'ساوند هوك', sector: 'تقلبات عالية', base: 6.4,
+      script: [T(50, -0.004, 0.052, 1.0), T(25, 0.008, 0.042, 0.9), T(35, -0.003, 0.048, 1.1),
+               T(30, -0.020, 0.074, 1.3), W(160, -0.0024, 0.026, 0.55, 0.78, 1.9)],
+      news: [0.20] },
+
+    { t: 'BB', name: 'بي بي', sector: 'تقلبات عالية', base: 21.0,
+      script: [T(60, -0.007, 0.058, 1.0), T(35, -0.022, 0.080, 1.35),
+               W(175, -0.0026, 0.028, 0.58, 0.80), B(6, 0.028, 0.050, 2.7)],
+      news: [0.16] },
+
+    { t: 'PLTR', name: 'بالانتير', sector: 'تقلبات عالية', base: 27.5,
+      script: [T(65, 0.003, 0.066, 1.0), T(30, -0.028, 0.094, 1.5),
+               W(205, -0.0021, 0.030, 0.60, 0.76)],
+      news: [0.11] },
+
+    { t: 'MARA', name: 'مارا', sector: 'تقلبات عالية', base: 15.8,
+      script: [T(40, 0.012, 0.050, 1.1), T(25, 0.028, 0.078, 1.7), T(35, -0.016, 0.060, 1.1),
+               T(20, -0.022, 0.072, 1.3), W(180, -0.0023, 0.026, 0.54, 0.79, 1.2)],
+      news: [0.10, 0.24] },
+
+    { t: 'RIOT', name: 'رايوت', sector: 'تقلبات عالية', base: 10.9,
+      script: [T(75, -0.005, 0.054, 1.0), T(30, -0.024, 0.088, 1.4),
+               W(170, -0.0025, 0.028, 0.57, 0.78), B(20, 0.030, 0.052, 2.9)],
+      news: [0.19] },
+
+    { t: 'AMD', name: 'إيه إم دي', sector: 'تقلبات عالية', base: 152.0,
+      script: [T(55, -0.011, 0.062, 1.1), T(35, 0.010, 0.048, 1.0), T(30, -0.018, 0.068, 1.2),
+               W(180, -0.0022, 0.025, 0.55, 0.77, 2.3)],
+      news: [0.42] },
+
+    { t: 'NVDA', name: 'إنفيديا', sector: 'تقلبات عالية', base: 118.0,
+      script: [T(30, 0.036, 0.090, 2.0), T(25, -0.030, 0.088, 1.5), T(20, -0.022, 0.074, 1.3),
+               W(225, -0.0020, 0.027, 0.58, 0.80, 1.3)],
+      news: [0.08] },
+
+    { t: 'TSLA', name: 'تسلا', sector: 'تقلبات عالية', base: 244.0,
+      script: [T(75, -0.006, 0.056, 1.1), T(20, -0.019, 0.070, 1.3),
+               W(205, -0.0019, 0.024, 0.52, 0.75)],
+      news: [0.21] },
+
+    { t: 'MULN', name: 'مولين', sector: 'تجزئة عكسية', base: 3.1,
+      script: [T(65, -0.014, 0.074, 1.2), T(30, -0.026, 0.094, 1.6),
+               W(205, -0.0027, 0.030, 0.62, 0.80)],
+      news: [0.30] },
+
+    { t: 'BBBY', name: 'بيد باث', sector: 'تجزئة عكسية', base: 1.9,
+      script: [T(60, 0.004, 0.044, 0.9), T(35, -0.011, 0.052, 1.0),
+               W(205, -0.0016, 0.021, 0.50, 0.62, 1.5)],
+      news: [0.14] },
+
+    { t: 'CVNA', name: 'كارفانا', sector: 'تجزئة عكسية', base: 38.0,
+      script: [T(95, 0.001, 0.030, 0.9), T(20, -0.009, 0.040, 1.1),
+               W(185, -0.0012, 0.017, 0.46, 0.60, 1.4)],
+      news: [0.27] },
+
+    { t: 'UPST', name: 'أبستارت', sector: 'تجزئة عكسية', base: 26.0,
+      script: [T(75, -0.008, 0.050, 1.0), T(25, -0.020, 0.066, 1.25),
+               W(200, -0.0022, 0.026, 0.56, 0.77)],
+      news: [0.18] },
+
+    { t: 'SOFI', name: 'سوفي', sector: 'تقلبات عالية', base: 10.2,
+      script: [T(50, 0.008, 0.054, 1.0), T(25, 0.022, 0.074, 1.5), T(35, -0.024, 0.084, 1.4),
+               W(175, -0.0025, 0.027, 0.58, 0.79), B(2, 0.135, 0.055, 4.2)],
+      news: [0.11, 0.25] },
+
+    { t: 'PLUG', name: 'بلاغ باور', sector: 'تجزئة عكسية', base: 2.4,
+      script: [T(60, -0.016, 0.080, 1.3), T(25, -0.028, 0.098, 1.6),
+               W(215, -0.0028, 0.031, 0.63, 0.81)],
+      news: [0.17] },
+
+    { t: 'F', name: 'فورد', sector: 'تجزئة عكسية', base: 11.3,
+      script: [T(70, 0.003, 0.050, 1.0), T(30, -0.017, 0.062, 1.2),
+               W(200, -0.0021, 0.025, 0.54, 0.76, 1.7)],
+      news: [0.22] },
+
+    { t: 'GE', name: 'جنرال إلكتريك', sector: 'تجزئة عكسية', base: 64.0,
+      script: [T(65, -0.011, 0.070, 1.2), T(30, 0.006, 0.054, 1.0), T(20, -0.021, 0.076, 1.3),
+               W(160, -0.0023, 0.027, 0.57, 0.78, 1.1), T(25, -0.026, 0.062, 1.6)],
+      news: [0.24] }
+  ];
+
+  /* ==================== محاكاة السلسلة على دقة الدقيقة ==================== */
+  function genSymbol(sym) {
+    const rand = mulberry32(hashStr(sym.t));
+    const gauss = makeGauss(rand);
+
+    // ---- ضبط الأطوار ليبلغ مجموعها عدد أيام التداول بالضبط ----
+    // (يُمتصّ الفرق في طور الوتد حتى تبقى أطوار الاختراق/الفشل في موضعها الصحيح)
+    const script = sym.script.map(p => Object.assign({}, p));
+    const totalDays = script.reduce((a, p) => a + p.d, 0);
+    if (totalDays !== TRADING_DAYS) {
+      let k = script.findIndex(p => p.mode === 'wedge');
+      if (k < 0) k = script.length - 1;
+      script[k].d += (TRADING_DAYS - totalDays);
+    }
+    if (script.some(p => p.d <= 0)) throw new Error('bad script for ' + sym.t);
+
+    // ---- توسيع الأطوار ----
+    const mode = new Uint8Array(TOTAL_MIN);
+    const drift = new Float64Array(TOTAL_MIN);
+    const vol = new Float64Array(TOTAL_MIN);
+    const volMult = new Float64Array(TOTAL_MIN);
+    const phOf = new Int32Array(TOTAL_MIN);
+    const PH_START = [];
+    let idx = 0;
+    script.forEach((ph, pi) => {
+      PH_START[pi] = idx;
+      const n = ph.d * MIN_PER_SESSION;
+      for (let i = 0; i < n && idx < TOTAL_MIN; i++, idx++) {
+        mode[idx] = ph.mode === 'wedge' ? 1 : ph.mode === 'break' ? 2 : 0;
+        drift[idx] = ph.mu / MIN_PER_SESSION;
+        vol[idx] = ph.sg / Math.sqrt(MIN_PER_SESSION);
+        volMult[idx] = ph.vm;
+        phOf[idx] = pi;
+      }
+    });
+    while (idx < TOTAL_MIN) {
+      const L = TOTAL_MIN - 1;
+      mode[idx] = mode[L]; drift[idx] = drift[L]; vol[idx] = vol[L]; volMult[idx] = volMult[L]; phOf[idx] = phOf[L]; idx++;
+    }
+
+    // ---- قفزات الأخبار (خارج أطوار الوتد كي لا تشوّه الهندسة) ----
+    const jumps = new Map();
+    for (const f of (sym.news || [])) {
+      const j = Math.floor(TOTAL_MIN * f);
+      if (mode[j] === 1) continue;
+      jumps.set(j, (rand() < 0.62 ? 1 : -1) * (0.05 + rand() * 0.14));
+    }
+
+    /* ---- مذبذب الوتد: جيبي مزدوج في [-1, 1] يلمس الحدّين بشكل متكرّر ---- */
+    const OSC = {
+      w1: 2 * Math.PI / ((4.5 + rand() * 4.0) * MIN_PER_SESSION),   // 4.5 – 8.5 يوم
+      w2: 2 * Math.PI / ((11.0 + rand() * 6.0) * MIN_PER_SESSION),  // 11 – 17 يوم
+      p1: rand() * Math.PI * 2, p2: rand() * Math.PI * 2,
+      a1: 0.74, a2: 0.40                                            // المجموع > 1 -> قصّ = لمسات قويّة
+    };
+    const oscAt = i => {
+      const v = OSC.a1 * Math.sin(OSC.w1 * i + OSC.p1) + OSC.a2 * Math.sin(OSC.w2 * i + OSC.p2);
+      return Math.max(-1, Math.min(1, v));
+    };
+
+    // ---- المحاكاة ----
+    const x = new Float64Array(TOTAL_MIN);
+    x[0] = Math.log(sym.base * (1.8 + rand() * 0.8));
+    const wedgeCtx = new Map();
+
+    for (let i = 1; i < TOTAL_MIN; i++) {
+      const pi = phOf[i];
+
+      if (mode[i] === 1) {
+        let ctx = wedgeCtx.get(pi);
+        if (!ctx) {
+          const ph = script[pi];
+          const o0 = oscAt(i);
+          // نصف العرض الابتدائي = نصف المدى الحقيقي لآخر 12 يومًا (مقيّد)
+          const look = Math.min(i, 12 * MIN_PER_SESSION);
+          let hi = -Infinity, lo = Infinity;
+          for (let k = i - look; k < i; k++) { if (x[k] > hi) hi = x[k]; if (x[k] < lo) lo = x[k]; }
+          const hw0 = Math.max(0.035, Math.min(0.19, (hi - lo) / 2));
+          ctx = { center: x[i - 1] - hw0 * o0, hw0: hw0, ct: ph.ct, len: ph.d * MIN_PER_SESSION };
+          wedgeCtx.set(pi, ctx);
+        }
+        const frac = Math.min(1, (i - PH_START[pi]) / ctx.len);
+        const hw = ctx.hw0 * (1 - ctx.ct * frac);
+        ctx.center += drift[i];
+        // ضجيج خفيف داخل القناة لإضفاء واقعية على الفتائل
+        x[i] = ctx.center + hw * oscAt(i) + vol[i] * (0.30 + 0.95 * (script[pi].jt || 1)) * gauss();
+      } else if (mode[i] === 2) {
+        x[i] = x[i - 1] + drift[i] * 1.4 + vol[i] * gauss() * 0.95;
+      } else {
+        x[i] = x[i - 1] + drift[i] + vol[i] * gauss();
+      }
+
+      if (jumps.has(i)) x[i] += jumps.get(i);
+      if (x[i] < Math.log(0.012)) x[i] = Math.log(0.012);
+    }
+
+    // ---- بناء الشموع الدقيقة ----
+    const minute = new Array(TOTAL_MIN);
+    for (let i = 0; i < TOTAL_MIN; i++) {
+      const o = i > 0 ? Math.exp(x[i - 1]) : Math.exp(x[i]);
+      const c = Math.exp(x[i]);
+      const body = Math.abs(c - o);
+      const wick = c * vol[i] * Math.sqrt(MIN_PER_SESSION) * (mode[i] === 1 ? 0.16 : 0.30) * 0.4;
+      const hi = Math.max(o, c) + body * 0.18 + Math.abs(gauss()) * wick;
+      const lo = Math.min(o, c) - body * 0.18 - Math.abs(gauss()) * wick;
+      const mIn = i % MIN_PER_SESSION;
+      const u = mIn / (MIN_PER_SESSION - 1);
+      const uShape = 0.55 + 1.25 * (4 * u * (1 - u)) * 0.0 + 1.05 * Math.pow(Math.abs(2 * u - 1), 1.7);
+      // انحسار الحجم داخل الوتد (تأكيد فني كلاسيكي)
+      let vmNow = volMult[i];
+      if (mode[i] === 1) {
+        const frac = Math.min(1, (i - PH_START[phOf[i]]) / (script[phOf[i]].d * MIN_PER_SESSION));
+        vmNow *= (1 - 0.58 * frac);
+      } else if (mode[i] === 2) vmNow *= 2.0;
+      minute[i] = {
+        time: STAMPS[i], o: o, h: hi, l: Math.max(lo, 0.0006), c: c,
+        v: Math.round((65000 + 190000 * vmNow * uShape) * (0.74 + rand() * 0.62))
+      };
+    }
+    for (const [j, mag] of jumps) {
+      minute[j].v = Math.round(minute[j].v * (2.8 + Math.abs(mag) * 10));
+      if (j + 1 < TOTAL_MIN) minute[j + 1].v = Math.round(minute[j + 1].v * 1.9);
+    }
+    return minute;
+  }
+
+  /* ============================== التجميع ================================= */
+  const TF_MINUTES = { '1m': 1, '5m': 5, '15m': 15, '1H': 60, '4H': 240, '1D': 'day', '1W': 'week' };
+  const TIMEFRAMES = ['1m', '5m', '15m', '1H', '4H', '1D', '1W'];
+  const TF_LABEL = { '1m': 'دقيقة', '5m': '٥ دقائق', '15m': '١٥ دقيقة', '1H': 'ساعة', '4H': '٤ ساعات', '1D': 'يومي', '1W': 'أسبوعي' };
+
+  function bucketKey(t, tf) {
+    if (tf === '1D') return Math.floor(t / 86400000);
+    if (tf === '1W') { const d = new Date(t); return Math.floor(t / 86400000) - ((d.getUTCDay() + 6) % 7); }
+    const mins = TF_MINUTES[tf];
+    const d = new Date(t);
+    const mIn = d.getUTCHours() * 60 + d.getUTCMinutes() - SESSION_OPEN_MIN;
+    return Math.floor(t / 86400000) * 1000000 + Math.floor(Math.max(0, mIn) / mins);
+  }
+
+  function aggregate(minute, tf) {
+    if (tf === '1m') return minute;
+    const out = [];
+    let cur = null, key = null;
+    for (let i = 0; i < minute.length; i++) {
+      const b = minute[i], k = bucketKey(b.time, tf);
+      if (k !== key) {
+        if (cur) out.push(cur);
+        key = k;
+        cur = { time: b.time, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v };
+      } else {
+        cur.h = Math.max(cur.h, b.h); cur.l = Math.min(cur.l, b.l);
+        cur.c = b.c; cur.v += b.v;
+      }
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+
+  const _minuteCache = new Map(), _tfCache = new Map();
+  function minuteSeries(sym) {
+    if (!_minuteCache.has(sym.t)) _minuteCache.set(sym.t, genSymbol(sym));
+    return _minuteCache.get(sym.t);
+  }
+  function series(ticker, tf) {
+    const key = ticker + '|' + tf;
+    if (_tfCache.has(key)) return _tfCache.get(key);
+    const sym = SYMBOLS.find(s => s.t === ticker) || SYMBOLS[0];
+    const out = aggregate(minuteSeries(sym), tf);
+    _tfCache.set(key, out);
+    return out;
+  }
+  const meta = ticker => SYMBOLS.find(s => s.t === ticker) || SYMBOLS[0];
+
+  /* ====================== ملخّص الرمز (Watchlist) ========================= */
+  function quote(ticker) {
+    const d = series(ticker, '1D');
+    const last = d[d.length - 1], prev = d[d.length - 2] || last;
+    const chg = last.c - prev.c;
+    let hi52 = -Infinity, lo52 = Infinity, volSum = 0;
+    for (const b of d) { if (b.h > hi52) hi52 = b.h; if (b.l < lo52) lo52 = b.l; }
+    for (const b of d.slice(-30)) volSum += b.v;
+    return {
+      t: ticker, name: meta(ticker).name, sector: meta(ticker).sector,
+      price: last.c, chg: chg, chgPct: (chg / prev.c) * 100,
+      open: last.o, high: last.h, low: last.l, prevClose: prev.c,
+      volume: last.v, avgVol30: volSum / Math.min(30, d.length),
+      hi52: hi52, lo52: lo52, spark: d.slice(-45).map(b => b.c)
+    };
+  }
+
+  /* ================== تنبيهات المحفزات (من سجل البوت) ===================== */
+  /* نفس بيانات logs/alerts_log.csv في المستودع */
+  /* BEGIN-EMBEDDED-ALERTS */
+  const ALERTS = [
+    {"ts":"2026-10-01T13:16:34.754358+00:00","t":"BCDA","title":"BioCardia Files Revised De Novo Pre-Submission for FDA Approval of Helix™ Catheter","price":1.01,"src":"GlobeNewswire - Public Companies","kind":"عاجل","catalyst":"موافقة FDA رسمية على الدواء/المنتج","event_date":"2026-10-01","score":5},
+    {"ts":"2026-09-30T11:10:37.070369+00:00","t":"OCGN","title":"Ocugen to Participate in Upcoming Scientific Conferences","price":1.09,"src":"GlobeNewswire - Public Companies","kind":"محفّز","catalyst":"عرض/تقديم نتائج علمية قادم","event_date":"2026-09-30","score":4},
+    {"ts":"2026-09-29T17:05:27.680945+00:00","t":"BYSI","title":"BeyondSpring Announces FDA Fast Track Designation for Plinabulin in Post-ICI Non-Squamous NSCLC and Strategic Transaction to Advance Global Phase 3 DUBLIN-4 Trial Toward Planned Interim Analysis","price":0.623,"src":"GlobeNewswire - Clinical Study","kind":"عاجل","catalyst":"تصنيف FDA كـ Fast Track","event_date":"2026-09-29","score":5},
+    {"ts":"2026-09-25T11:46:38.197891+00:00","t":"AIFF","title":"Firefly (NASDAQ: AIFF) and NeuroSigma Partner to Expand Access to First FDA-Cleared, Non-Drug Treatment for Pediatric ADHD","price":1.19,"src":"globenewswire","kind":"خبر","catalyst":"","event_date":"","score":5},
+    {"ts":"2026-09-24T17:28:42.169413+00:00","t":"AGRZ","title":"AGROZ INC. ANNOUNCES ANTICIPATED REVERSE STOCK SPLIT","price":0.2251,"src":"prnewswire","kind":"خبر","catalyst":"","event_date":"","score":3},
+    {"ts":"2026-09-24T16:22:12.656658+00:00","t":"BZAI","title":"BZAI DEADLINE: ROSEN, TRUSTED INVESTOR COUNSEL, Encourages Blaize Holdings, Inc. Investors with Losses in Excess of $100K to Secure Counsel Before Important Deadline in Securities Class Action First Filed by the Firm - BZAI","price":0.5375,"src":"newsfile","kind":"خبر","catalyst":"","event_date":"","score":5},
+    {"ts":"2026-09-24T11:01:35.462338+00:00","t":"RAASY","title":"Cloopen Group Holding Limited Announces Shareholders' Approval of Merger Agreement","price":2.52,"src":"prnewswire","kind":"خبر","catalyst":"","event_date":"","score":4},
+    {"ts":"2026-09-24T11:00:30.363490+00:00","t":"ORGN","title":"Origen to Proceed with the Acquisition of the Campo De Cima Project in Brazil","price":0.9501,"src":"newsfile","kind":"خبر","catalyst":"","event_date":"","score":4},
+    {"ts":"2026-09-23T19:34:43.514490+00:00","t":"ZTG","title":"Zenta Group Company Limited Clarifies Shares Outstanding Following Recent Share Issuance","price":1.73,"src":"globenewswire","kind":"خبر","catalyst":"","event_date":"","score":4},
+    {"ts":"2026-09-23T11:00:20.021860+00:00","t":"ZBAO","title":"Zhibao Technology Inc. Enters into Non-Binding Letter of Intent to Acquire On-Chain Trading Platform MeVX","price":0.109,"src":"newsfile","kind":"خبر","catalyst":"","event_date":"","score":4},
+    {"ts":"2026-09-22T11:01:41.634742+00:00","t":"AMFN","title":"American Fusion Inc. (OTCQB: AMFN) Provides Corporate Update on Intellectual Property, Texatron™ Testing and National Exchange Uplisting","price":0.106,"src":"globenewswire","kind":"خبر","catalyst":"","event_date":"","score":4},
+    {"ts":"2026-09-22T10:09:50.581152+00:00","t":"LODE","title":"Comstock Metals Commences 24/7 Operations for Solar Panel Recycling","price":2.62,"src":"globenewswire","kind":"خبر","catalyst":"","event_date":"","score":3},
+    {"ts":"2026-09-21T10:08:49.543118+00:00","t":"KDK","title":"Kodiak Copper Announces Filing of TSXV Listing Application, Execution of Definitive Agreements, Closing of Subscription Receipt Financing and Leadership Appointments for Kay Copper","price":3.28,"src":"newsfile","kind":"خبر","catalyst":"","event_date":"","score":3},
+    {"ts":"2026-09-18T11:30:27.672564+00:00","t":"MERC","title":"Mercado Minerals Signs LOI to Acquire La Franca within the Zamora Project and Samples 1.00 Metre of 1.53 kg/t Silver and 1.39 g/t Gold","price":0.3844,"src":"newsfile","kind":"خبر","catalyst":"","event_date":"","score":3},
+    {"ts":"2026-09-16T12:02:15.471304+00:00","t":"DLXY","title":"Delixy Holdings Limited Signs Non-Binding Letter of Intent for Strategic Transaction Involving Up to 48% Interest in East Kazakhstan Sarybulak Oil Field","price":0.415,"src":"globenewswire","kind":"خبر","catalyst":"","event_date":"","score":5},
+    {"ts":"2026-09-15T20:16:42.457573+00:00","t":"RC","title":"Ready Capital Corporation Declares Third Quarter 2026 Dividends","price":1.6,"src":"globenewswire","kind":"خبر","catalyst":"","event_date":"","score":3},
+    {"ts":"2026-09-15T11:31:33.996521+00:00","t":"ZENA","title":"ZenaTech Closes 29th Drone as a Service Acquisition Adding Solar and Railroad Customers with Georgia-based U.S. Land Surveying Company Holding Licenses in 17 States","price":1.48,"src":"globenewswire","kind":"خبر","catalyst":"","event_date":"","score":4},
+    {"ts":"2026-09-15T10:10:01.871192+00:00","t":"ZEFIF","title":"Zefiro Awarded Three Federally Funded Well Plugging Projects in Ohio and Pennsylvania","price":0.4685,"src":"newsfile","kind":"خبر","catalyst":"","event_date":"","score":3},
+    {"ts":"2026-09-14T20:11:51.674198+00:00","t":"BMNM","title":"Richard Parry Joins Board of Directors of Bimini Capital Management","price":3.32,"src":"globenewswire","kind":"خبر","catalyst":"","event_date":"","score":4},
+    {"ts":"2026-09-14T12:16:14.024816+00:00","t":"MYSZ","title":"MySize Announces Acquisition-Led Strategy Focused on Defense Technology","price":1.73,"src":"prnewswire","kind":"خبر","catalyst":"","event_date":"","score":4},
+    {"ts":"2026-09-14T12:01:24.224300+00:00","t":"NOMA","title":"Nomadar Enters into Definitive Agreement to Acquire Majority Interest in Fox Soccer Academy","price":1.45,"src":"prnewswire","kind":"خبر","catalyst":"","event_date":"","score":3}
+  ];
+  /* END-EMBEDDED-ALERTS */
+
+  const TICKERS = SYMBOLS.map(s => s.t);
+  const META = Object.fromEntries(SYMBOLS.map(s => [s.t, s]));
+
+  /* إضافة رمز ديناميكيًا (يدويًا أو من TradingView) ببيانات حتمية مشتقة من اسمه */
+  function ensureSymbol(t, over) {
+    t = String(t || '').trim().toUpperCase();
+    if (!t) return null;
+    if (META[t]) return META[t];
+    const rand = mulberry32(hashStr(t));
+    const base = +(1 + rand() * 240).toFixed(2);
+    const script = [
+      T(40 + Math.floor(rand() * 40), (rand() - .5) * .02, .05 + rand() * .04, 1 + rand() * .5),
+      W(140 + Math.floor(rand() * 80), -.002 - rand() * .001, .024 + rand() * .006, .5 + rand() * .2, .72 + rand() * .12),
+      (rand() < .4 ? B(8, .028, .05, 2.6) : T(20, -.004, .05, 1))
+    ];
+    const sym = { t: t, name: (over && over.name) || t, sector: (over && over.sector) || 'مضاف', base: base, script: script, news: [] };
+    SYMBOLS.push(sym); TICKERS.push(t); META[t] = sym;
+    return sym;
+  }
+
+  global.Market = {
+    SYMBOLS: TICKERS,
+    META: META,
+    TIMEFRAMES: TIMEFRAMES, TF_LABEL: TF_LABEL,
+    series: series, quote: quote, meta: meta, alerts: ALERTS,
+    ensureSymbol: ensureSymbol,
+    SESSION_OPEN_MIN: SESSION_OPEN_MIN, MIN_PER_SESSION: MIN_PER_SESSION
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* =============================================================================
+ * indicators.js — المؤشرات الفنية (EMA / SMA / RSI / MACD / ATR / Pivots)
+ * كل الدوال خالصة (pure) وتأخذ مصفوفة شموع {time,o,h,l,c,v}
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  function sma(vals, period) {
+    const out = new Array(vals.length).fill(null);
+    let sum = 0;
+    for (let i = 0; i < vals.length; i++) {
+      sum += vals[i];
+      if (i >= period) sum -= vals[i - period];
+      if (i >= period - 1) out[i] = sum / period;
+    }
+    return out;
+  }
+
+  function ema(vals, period) {
+    const out = new Array(vals.length).fill(null);
+    if (!vals.length) return out;
+    const k = 2 / (period + 1);
+    let prev = vals[0];
+    out[0] = prev;
+    for (let i = 1; i < vals.length; i++) { prev = vals[i] * k + prev * (1 - k); out[i] = prev; }
+    return out;
+  }
+
+  /** RSI بطريقة Wilder الأصلية (تنعيم 14) */
+  function rsi(bars, period) {
+    period = period || 14;
+    const out = new Array(bars.length).fill(null);
+    if (bars.length <= period) return out;
+    let gain = 0, loss = 0;
+    for (let i = 1; i <= period; i++) {
+      const d = bars[i].c - bars[i - 1].c;
+      if (d >= 0) gain += d; else loss -= d;
+    }
+    let ag = gain / period, al = loss / period;
+    out[period] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+    for (let i = period + 1; i < bars.length; i++) {
+      const d = bars[i].c - bars[i - 1].c;
+      ag = (ag * (period - 1) + Math.max(d, 0)) / period;
+      al = (al * (period - 1) + Math.max(-d, 0)) / period;
+      out[i] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+    }
+    return out;
+  }
+
+  function macd(bars, fast, slow, signal) {
+    fast = fast || 12; slow = slow || 26; signal = signal || 9;
+    const c = bars.map(b => b.c);
+    const ef = ema(c, fast), es = ema(c, slow);
+    const line = c.map((_, i) => (ef[i] == null || es[i] == null) ? null : ef[i] - es[i]);
+    const clean = line.map(v => v == null ? 0 : v);
+    const sig = ema(clean, signal).map((v, i) => line[i] == null ? null : v);
+    const hist = line.map((v, i) => (v == null || sig[i] == null) ? null : v - sig[i]);
+    return { line: line, signal: sig, hist: hist };
+  }
+
+  /** ATR بطريقة Wilder */
+  function atr(bars, period) {
+    period = period || 14;
+    const out = new Array(bars.length).fill(null);
+    if (bars.length < 2) return out;
+    const trs = [bars[0].h - bars[0].l];
+    for (let i = 1; i < bars.length; i++) {
+      trs.push(Math.max(bars[i].h - bars[i].l,
+        Math.abs(bars[i].h - bars[i - 1].c),
+        Math.abs(bars[i].l - bars[i - 1].c)));
+    }
+    let a = 0;
+    for (let i = 0; i < period && i < trs.length; i++) a += trs[i];
+    a /= Math.min(period, trs.length);
+    out[Math.min(period, trs.length) - 1] = a;
+    for (let i = period; i < trs.length; i++) { a = (a * (period - 1) + trs[i]) / period; out[i] = a; }
+    return out;
+  }
+
+  function volumeMA(bars, period) { return sma(bars.map(b => b.v), period || 20); }
+
+  /** انحراف معياري متحرك */
+  function stdev(vals, period) {
+    const out = new Array(vals.length).fill(null);
+    for (let i = period - 1; i < vals.length; i++) {
+      let m = 0;
+      for (let j = i - period + 1; j <= i; j++) m += vals[j];
+      m /= period;
+      let s = 0;
+      for (let j = i - period + 1; j <= i; j++) s += (vals[j] - m) ** 2;
+      out[i] = Math.sqrt(s / period);
+    }
+    return out;
+  }
+
+  /* ----------------------- نقاط الارتكاز (Pivots) ------------------------ */
+  /**
+   * نقطة ارتكاز fractal: الشمعة أعلى/أقل من k شمعة على كل جانب.
+   * @returns {{highs:number[], lows:number[]}} فهارس
+   */
+  function pivots(bars, k) {
+    k = k || 3;
+    const highs = [], lows = [];
+    for (let i = k; i < bars.length - k; i++) {
+      let isHi = true, isLo = true;
+      for (let j = 1; j <= k; j++) {
+        if (bars[i].h <= bars[i - j].h || bars[i].h <= bars[i + j].h) isHi = false;
+        if (bars[i].l >= bars[i - j].l || bars[i].l >= bars[i + j].l) isLo = false;
+        if (!isHi && !isLo) break;
+      }
+      if (isHi) highs.push(i);
+      if (isLo) lows.push(i);
+    }
+    return { highs: highs, lows: lows };
+  }
+
+  /** أقل مربعات على نقاط (x=fهرس، y=سعر) -> {m, b, r2} */
+  function linreg(pts) {
+    const n = pts.length;
+    if (n < 2) return null;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const p of pts) { sx += p[0]; sy += p[1]; sxx += p[0] * p[0]; sxy += p[0] * p[1]; }
+    const den = n * sxx - sx * sx;
+    if (Math.abs(den) < 1e-12) return null;
+    const m = (n * sxy - sx * sy) / den;
+    const b = (sy - m * sx) / n;
+    let ssTot = 0, ssRes = 0;
+    const my = sy / n;
+    for (const p of pts) { ssTot += (p[1] - my) ** 2; ssRes += (p[1] - (m * p[0] + b)) ** 2; }
+    const r2 = ssTot === 0 ? 1 : 1 - ssRes / ssTot;
+    return { m: m, b: b, r2: r2 };
+  }
+
+  global.TA = {
+    sma: sma, ema: ema, rsi: rsi, macd: macd, atr: atr,
+    volumeMA: volumeMA, stdev: stdev, pivots: pivots, linreg: linreg
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* =============================================================================
+ * wedge.js — استراتيجية الوتد الهابط (Falling Wedge Strategy)
+ * -----------------------------------------------------------------------------
+ * التعريف الفني المُطبَّق:
+ *   خطّان هابطان متقاربان؛ خط المقاومة (القمم) أشدّ انحدارًا من خط الدعم
+ *   (القيعان)، فينحصر السعر بينهما ويتقلّص المدى مع انحسار الحجم —
+ *   نموذج استمرار هابط يتحوّل إلى انعكاس صاعد عند اختراق المقاومة.
+ *
+ * خطوات الاكتشاف:
+ *   1) استخراج نقاط الارتكاز (fractal pivots) للقمم والقيعان.
+ *   2) مسح نوافذ مرشّحة (بداية × نهاية) وملاءمة خطّين بأقلّ المربعات،
+ *      ثم "التقاط" كل خط إلى الغلاف ليمسّ أقصى نقطة ارتكاز (كفعل المتداول).
+ *   3) شروط الصلاحية: انحدار هابط للخطّين + تقارب + قمّة مستقبلية (apex)
+ *      + انكماش المدى + احتواء السعر + انحدار كافٍ.
+ *   4) حساب الاختراق والأهداف (قياس الحركة) ووقف الخسارة ونسبة العائد/المخاطرة.
+ *   5) درجة ثقة 0-100 من اللمسات ودقّة الملاءمة والانكماش والحجم والنظافة والتباعد.
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const TA = global.TA;
+
+  const DEFAULTS = {
+    minBars: 22,          // أقل طول للوتد
+    maxBars: 260,         // أقصى طول
+    pivotK: 3,            // نصف عرض نقطة الارتكاز
+    minContraction: 0.28, // يجب أن ينكمش المدى 28% على الأقل
+    minTouches: 2,        // أقل عدد لمسات لكل خط
+    buffer: 0.004,        // هامش تأكيد الاختراق
+    maxViolRate: 0.09,    // أقصى نسبة شموع مخترقة للخطّين
+    volumeDecline: true
+  };
+
+  /* ---------------------- تباعد RSI الصاعد (Divergence) ------------------- */
+  function bullishDivergence(bars, rsiVals, from, to) {
+    const lows = [];
+    for (let i = Math.max(from, 2); i <= to - 2; i++) {
+      if (bars[i].l <= bars[i - 1].l && bars[i].l <= bars[i - 2].l &&
+        bars[i].l <= bars[i + 1].l && bars[i].l <= bars[i + 2].l) lows.push(i);
+    }
+    if (lows.length < 2) return null;
+    const a = lows[lows.length - 2], b = lows[lows.length - 1];
+    if (rsiVals[a] == null || rsiVals[b] == null) return null;
+    if (bars[b].l < bars[a].l && rsiVals[b] > rsiVals[a]) {
+      return { from: a, to: b, strength: rsiVals[b] - rsiVals[a] };
+    }
+    return null;
+  }
+
+  /* =============================== المحلّل ================================ */
+  /**
+   * @param {Array} bars شموع {time,o,h,l,c,v}
+   * @returns {object|null} كائن الوتد أو null
+   */
+  function detect(bars, opts) {
+    opts = Object.assign({}, DEFAULTS, opts || {});
+    const n = bars.length;
+    if (n < opts.minBars + 8) return null;
+
+    const rsiVals = TA.rsi(bars, 14);
+    const volMA = TA.volumeMA(bars, 20);
+    const floorIdx = Math.max(0, n - 1 - opts.maxBars);
+
+    const pv = TA.pivots(bars, opts.pivotK);
+    const highs = pv.highs.filter(i => i >= floorIdx);
+    const lows = pv.lows.filter(i => i >= floorIdx);
+    if (highs.length < opts.minTouches || lows.length < opts.minTouches) return null;
+
+    // نهايات مرشّحة: الشمعة الأخيرة وما قبلها (لاكتشاف اختراق حديث)
+    const endCandidates = [];
+    for (let e = n - 1; e >= Math.max(n - 30, floorIdx + opts.minBars); e--) endCandidates.push(e);
+
+    // بدايات مرشّحة: نقاط ارتكاز + شبكة منتظمة
+    const startSet = new Set();
+    for (const i of highs) startSet.add(i);
+    for (const i of lows) startSet.add(i);
+    for (let i = floorIdx; i < n - opts.minBars; i += 4) startSet.add(i);
+    const starts = Array.from(startSet).sort((a, b) => a - b);
+
+    let best = null;
+
+    for (const end of endCandidates) {
+      for (const start of starts) {
+        const len = end - start;
+        if (len < opts.minBars || len > opts.maxBars) continue;
+
+        const wh = highs.filter(i => i >= start && i <= end);
+        const wl = lows.filter(i => i >= start && i <= end);
+        if (wh.length < opts.minTouches || wl.length < opts.minTouches) continue;
+
+        const upFit = TA.linreg(wh.map(i => [i, bars[i].h]));
+        const loFit = TA.linreg(wl.map(i => [i, bars[i].l]));
+        if (!upFit || !loFit) continue;
+
+        // (1) كلا الخطّين هابطان
+        if (upFit.m >= 0 || loFit.m >= 0) continue;
+        // (2) تقارب: خط الدعم أقل انحدارًا من خط المقاومة
+        if (loFit.m <= upFit.m) continue;
+
+        // (2ب) التقاط الميل إلى الغلاف: نزيح الخط ليمرّ بأقصى نقطة ارتكاز
+        let bUp = -Infinity, bLo = Infinity;
+        for (const i of wh) bUp = Math.max(bUp, bars[i].h - upFit.m * i);
+        for (const i of wl) bLo = Math.min(bLo, bars[i].l - loFit.m * i);
+        const up = { m: upFit.m, b: bUp, r2: upFit.r2 };
+        const lo = { m: loFit.m, b: bLo, r2: loFit.r2 };
+
+        // (3) القمّة (apex) في المستقبل — الوتد ما زال متكوّنًا عند نهايته
+        const apexX = (lo.b - up.b) / (up.m - lo.m);
+        if (!(apexX > end)) continue;
+
+        // (4) انكماش المدى
+        const wStart = (up.m * start + up.b) - (lo.m * start + lo.b);
+        const wEnd = (up.m * end + up.b) - (lo.m * end + lo.b);
+        if (wStart <= 0 || wEnd <= 0) continue;
+        const contraction = 1 - wEnd / wStart;
+        if (contraction < opts.minContraction) continue;
+
+        // (5) الاحتواء: الفتائل قد تخترق قليلًا (واقعي)، فنتسامح مع نسبة
+        //     صغيرة من الشموع المخترقة بشرط ألّا يكون الاختراق فاحشًا.
+        let viol = 0, worstPierce = 0;
+        for (let i = start; i <= end; i++) {
+          const u = up.m * i + up.b, l = lo.m * i + lo.b;
+          const localW = Math.max(u - l, wStart * 0.05);
+          const tol = localW * 0.15 + bars[i].c * 0.006;
+          const d = Math.max(bars[i].h - (u + tol), (l - tol) - bars[i].l);
+          if (d > 0) { viol++; if (d > worstPierce) worstPierce = d; }
+        }
+        const violRate = viol / len;
+        if (violRate > opts.maxViolRate) continue;
+        if (worstPierce > wStart * 0.16) continue;
+
+        // (6) انحدار واضح (نموذج حقيقي لا قناة مسطّحة)
+        const steepness = Math.abs(up.m) * len / wStart;
+        if (steepness < 0.15) continue;
+
+        // (6ب) نهاية الوتد يجب أن تسبق أي اختراق: نرفض النوافذ التي تُغلق
+        //      شموعها الأخيرة فوق خط المقاومة (تلك نوافذ ما بعد الاختراق)
+        let brokeTail = false;
+        for (let i = Math.max(start, end - 2); i <= end; i++) {
+          if (bars[i].c > up.m * i + up.b) { brokeTail = true; break; }
+        }
+        if (brokeTail) continue;
+
+        // (7) اتجاه الحجم داخل الوتد
+        let volFirst = 0, volLast = 0, cn1 = 0, cn2 = 0;
+        const half = Math.floor(len / 2);
+        for (let i = start; i < start + half; i++) { volFirst += bars[i].v; cn1++; }
+        for (let i = end - half; i <= end; i++) { volLast += bars[i].v; cn2++; }
+        const volRatio = (cn1 && cn2 && volFirst > 0) ? (volLast / cn2) / (volFirst / cn1) : 1;
+
+        /* ---------------------------- درجة الثقة --------------------------- */
+        const touchScore = Math.min(1, (wh.length + wl.length - 2 * opts.minTouches) / 12) * 20 + 8;
+        const fitScore = ((up.r2 + lo.r2) / 2) * 18;
+        const contrScore = Math.min(1, contraction / 0.70) * 14;
+        const volScore = opts.volumeDecline ? Math.max(0, Math.min(1, (1 - volRatio) / 0.50)) * 13 : 7;
+        const durScore = Math.min(1, len / 100) * 11;
+        const slopeScore = Math.min(1, steepness / 1.3) * 8;
+        const cleanScore = (1 - violRate / opts.maxViolRate) * 4;
+        const div = bullishDivergence(bars, rsiVals, start, end);
+        const divScore = div ? Math.min(1, div.strength / 12) * 4 + 3 : 0;
+        const score = touchScore + fitScore + contrScore + volScore + durScore + slopeScore + cleanScore + divScore;
+
+        if (!best || score > best.score) {
+          best = {
+            start: start, end: end, apexX: apexX, upper: up, lower: lo,
+            widthStart: wStart, widthEnd: wEnd, contraction: contraction,
+            touchesHigh: wh, touchesLow: wl, volRatio: volRatio,
+            divergence: div, violRate: violRate, score: score,
+            _parts: { touchScore, fitScore, contrScore, volScore, durScore, slopeScore, cleanScore, divScore }
+          };
+        }
+      }
+    }
+
+    return best ? finalize(bars, best, opts, rsiVals, volMA) : null;
+  }
+
+  /* ------------------- الاختراق والأهداف ووقف الخسارة -------------------- */
+  function finalize(bars, w, opts, rsiVals, volMA) {
+    const n = bars.length;
+    const upAt = x => w.upper.m * x + w.upper.b;
+    const loAt = x => w.lower.m * x + w.lower.b;
+    const last = n - 1;
+
+    let breakoutIdx = -1, failedIdx = -1;
+    for (let i = w.end + 1; i < n; i++) {
+      if (breakoutIdx < 0 && bars[i].c > upAt(i) * (1 + opts.buffer)) breakoutIdx = i;
+      if (failedIdx < 0 && bars[i].c < loAt(i) * (1 - opts.buffer)) failedIdx = i;
+    }
+
+    let status = 'forming';
+    if (breakoutIdx >= 0 && (failedIdx < 0 || breakoutIdx < failedIdx)) {
+      const age = last - breakoutIdx;
+      status = age <= 1 ? 'breakout' : age <= 6 ? 'running' : 'extended';
+    } else if (failedIdx >= 0) status = 'failed';
+
+    /* الأهداف: قياس الحركة (measured move) من أقصى عرض للوتد */
+    const H = w.widthStart;
+    const refIdx = breakoutIdx >= 0 ? breakoutIdx : Math.min(w.end + 1, last);
+    const entry = breakoutIdx >= 0 ? bars[breakoutIdx].c : upAt(refIdx);
+    let swingLow = Infinity;
+    for (let i = Math.max(0, refIdx - 6); i <= refIdx; i++) if (bars[i].l < swingLow) swingLow = bars[i].l;
+    const stop = Math.min(loAt(refIdx), swingLow) * 0.985;
+
+    const risk = Math.max(entry - stop, entry * 0.001);
+    const targets = [0.382, 0.618, 1.0].map(f => {
+      const price = entry + H * f;
+      return { pct: f, price: price, rr: (price - entry) / risk };
+    });
+
+    const avgVol = volMA[refIdx] || volMA[last] || 1;
+    const volConfirm = breakoutIdx >= 0 ? bars[breakoutIdx].v / (avgVol || 1) : null;
+
+    let retestIdx = -1;
+    if (breakoutIdx >= 0) {
+      for (let i = breakoutIdx + 1; i < n; i++) {
+        const u = upAt(i);
+        if (u > 0 && Math.abs(bars[i].l - u) / u < 0.022 && bars[i].c > u) { retestIdx = i; break; }
+      }
+    }
+
+    let confidence = w.score;
+    if (status === 'breakout') confidence += (volConfirm && volConfirm > 1.4) ? 6 : 1;
+    else if (status === 'running' && volConfirm > 1.2) confidence += 3;
+    if (status === 'failed') confidence *= 0.45;
+    confidence = Math.max(0, Math.min(100, confidence));
+
+    const grade = confidence >= 92 ? 'A+' : confidence >= 84 ? 'A' : confidence >= 74 ? 'B'
+      : confidence >= 62 ? 'C' : 'D';
+
+    return {
+      pattern: 'falling-wedge', symbol: null, timeframe: null,
+      start: w.start, end: w.end, bars: w.end - w.start,
+      upper: { m: w.upper.m, b: w.upper.b, r2: w.upper.r2, touches: w.touchesHigh },
+      lower: { m: w.lower.m, b: w.lower.b, r2: w.lower.r2, touches: w.touchesLow },
+      apexX: w.apexX,
+      widthStart: H, widthEnd: w.widthEnd, contraction: w.contraction,
+      volRatio: w.volRatio, violRate: w.violRate, divergence: w.divergence,
+      status: status, breakoutIdx: breakoutIdx, failedIdx: failedIdx, retestIdx: retestIdx,
+      entry: entry, stop: stop, targets: targets, risk: risk,
+      volConfirm: volConfirm, confidence: confidence, grade: grade, parts: w._parts,
+      upAt: upAt, loAt: loAt,
+      startTime: bars[w.start].time,
+      endTime: bars[w.end].time,
+      breakoutTime: breakoutIdx >= 0 ? bars[breakoutIdx].time : null,
+      lastClose: bars[last].c
+    };
+  }
+
+  /* ---------------------------- الفاحص الشامل ---------------------------- */
+  function scan(tickers, tf, opts) {
+    const out = [];
+    for (const t of tickers) {
+      const w = detect(global.Market.series(t, tf), opts);
+      if (w) { w.symbol = t; w.timeframe = tf; out.push(w); }
+    }
+    return out.sort((a, b) => b.confidence - a.confidence);
+  }
+
+  global.Wedge = { detect: detect, scan: scan, DEFAULTS: DEFAULTS };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* =============================================================================
+ * split.js — استراتيجية «التجزئة العكسية — ارتداد القاع» (منقولة من داشبورد المستخدم)
+ * -----------------------------------------------------------------------------
+ * تُطبّق قائمة شروط a2 على أي مصفوفة شموع [{t,o,h,l,c,v}] وتُرجع:
+ *   { k: [checks], score, ready, st, cls, plan:{en,sl,tp,rr}, lines:[{y,l,c}], info:[[..]] }
+ * تعمل على الإطار اليومي مع تأكيد 4س — هنا نكتفي بالإطار المعروض.
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const CFG = { dropMin: .35, bounce: .15, neck: .35, dMin: 20, dMax: 50, rise: .2 };
+
+  const ema = (a, n) => { const k = 2 / (n + 1); let e = a[0]; return a.map((x, i) => i ? e = x * k + e * (1 - k) : e); };
+  function rsi(c, n = 14) {
+    const o = Array(c.length).fill(50); let g = 0, l = 0;
+    for (let i = 1; i < c.length; i++) {
+      const d = c[i] - c[i - 1], u = Math.max(d, 0), v = Math.max(-d, 0);
+      if (i <= n) { g += u; l += v; if (i == n) { g /= n; l /= n; o[i] = l ? 100 - 100 / (1 + g / l) : 100; } }
+      else { g = (g * (n - 1) + u) / n; l = (l * (n - 1) + v) / n; o[i] = l ? 100 - 100 / (1 + g / l) : 100; }
+    }
+    return o;
+  }
+  function atr(c, n = 14) {
+    const s = c.slice(-n - 1); let t = 0;
+    for (let i = 1; i < s.length; i++) t += Math.max(s[i].h - s[i].l, Math.abs(s[i].h - s[i - 1].c), Math.abs(s[i].l - s[i - 1].c));
+    return t / (s.length - 1 || 1);
+  }
+  function pivots(cs, k) {
+    const H = [], L = [];
+    for (let i = k; i < cs.length - k; i++) {
+      let hi = 1, lo = 1;
+      for (let j = 1; j <= k; j++) {
+        if (cs[i].h <= cs[i - j].h || cs[i].h <= cs[i + j].h) hi = 0;
+        if (cs[i].l >= cs[i - j].l || cs[i].l >= cs[i + j].l) lo = 0;
+      }
+      if (hi) H.push({ i, y: cs[i].h }); if (lo) L.push({ i, y: cs[i].l });
+    }
+    return { H, L };
+  }
+
+  const chk = (l, ok, v, req = 1, w = 10) => ({ l, ok: !!ok, v, req, w });
+  const fin = (k, plan, x) => ({
+    k, plan, ...x,
+    score: Math.round(k.reduce((a, q) => a + (q.ok ? q.w : 0), 0) * 100 / k.reduce((a, q) => a + q.w, 0)),
+    ready: k.filter(q => q.req).every(q => q.ok)
+  });
+  const mkPlan = (p, sl, tp) => ({ en: p, sl, tp, rr: (tp[1] - p) / (p - sl) });
+
+  /* م: {date, float} اختياريان من واجهة المستخدم */
+  function analyze(src, m) {
+    m = m || {};
+    const c = src.map(x => ({ t: (x.t != null ? x.t : x.time), o: x.o, h: x.h, l: x.l, c: x.c, v: x.v }));
+    const cl = c.map(x => x.c);
+    const e20 = ema(cl, 20), e30 = ema(cl, 30), e50 = ema(cl, 50), R = rsi(cl), A = atr(c);
+    const n = c.length - 1, p = cl[n];
+    const sd = m.date ? new Date(m.date).getTime() : 0;
+    let s = sd ? c.findIndex(x => x.t >= sd) : -1; const known = s >= 0; if (!known) s = Math.max(0, n - 45);
+    const days = sd ? Math.floor((Date.now() - sd) / 864e5) : null;
+    const win = c.slice(s), hi = Math.max(...win.map(x => x.h)), iH = s + win.findIndex(x => x.h == hi);
+    const lo = Math.min(...win.map(x => x.l)), iL = s + win.findIndex(x => x.l == lo);
+    const rise = p / c[s].c - 1, drop = iL > iH ? 1 - lo / hi : 0, minR = Math.min(...R.slice(s));
+    const Ls = pivots(win, 2).L.map(q => ({ i: q.i + s, y: q.y })).sort((x, y) => x.y - y.y);
+    let A2 = Ls[0], B = null; for (const q of Ls.slice(1)) if (A2 && Math.abs(q.i - A2.i) >= 5) { B = q; break; }
+    let a = A2, b = B; if (a && b && b.i < a.i) [a, b] = [b, a];
+    let sweep = 0, higher = 0, neck = 0, bounce = 0, hold = 0;
+    if (a && b) {
+      higher = b.y > a.y && b.y / a.y - 1 < .15;
+      sweep = b.y < a.y && c[b.i].c > a.y;
+      hold = n - b.i >= 2 && Math.min(...c.slice(b.i).map(x => x.l)) >= Math.min(a.y, b.y) * .995;
+      neck = Math.max(...c.slice(a.i, b.i + 1).map(x => x.h)); bounce = neck / a.y - 1;
+    }
+    const sup = lo, nearN = neck && neck / sup - 1 <= CFG.neck, bo = neck && p > neck;
+    const under = c[iL].c < e20[iL] && c[iL].c < e30[iL] && c[iL].c < e50[iL];
+    const rec = p >= e20[n] * .97;
+    const j = c.findIndex((x, i) => i >= s && x.c < x.o);
+    const fin3 = j >= 0 && c[j].h > p * 1.05 ? c[j].h : p * 1.6;
+    const sl = Math.min(a ? a.y : lo, b ? b.y : lo) - .2 * A;
+    const pl = mkPlan(p, sl < p ? sl : p * .9, [1, 2, 3].map(k => p + (fin3 - p) * k / 3));
+    const k = [
+      chk(CFG.dMin + '–' + CFG.dMax + ' يومًا منذ التجزئة', days != null && days >= CFG.dMin && days <= CFG.dMax, days == null ? 'أدخل تاريخ التجزئة' : days + ' يوم', 1, 10),
+      chk('ارتفاع ≤ ' + CFG.rise * 100 + '% من إغلاق يوم التجزئة', known && rise <= CFG.rise, known ? (rise * 100).toFixed(1) + '%' : '—', 1, 10),
+      chk('هبوط قوي ≥ ' + CFG.dropMin * 100 + '%', drop >= CFG.dropMin, (drop * 100).toFixed(0) + '%', 1, 10),
+      chk('RSI لامس تشبع بيع (<30)', minR < 30, 'أدنى ' + minR.toFixed(1), 1, 12),
+      chk('الدعم صامد 5 جلسات', n - iL >= 5, (n - iL) + ' جلسة', 1, 10),
+      chk('ارتداد نحو المقاومة ≥ ' + CFG.bounce * 100 + '%', bounce >= CFG.bounce, (bounce * 100).toFixed(0) + '%', 1, 10),
+      chk('إعادة اختبار الدعم + ثبات', (sweep || higher) && hold, sweep ? 'سحب سيولة' : higher ? 'قاع أعلى' : 'لم يحدث', 1, 14),
+      chk('اختراق خط العنق وقربه من الدعم', bo && nearN, neck ? (bo ? 'اخترق ' : 'تحت ') + neck.toFixed(2) : '—', 1, 12),
+      chk('تحت EMA بعد الهبوط ثم استرجاع', under && rec, rec ? 'مُسترجع' : 'لم يسترجع', 1, 12)
+    ];
+    const lines = [{ y: sup, l: 'دعم', c: '#f6465d' }]; if (neck) lines.push({ y: neck, l: 'خط العنق', c: '#d4b43a' });
+    const r = fin(k, pl, {
+      lines,
+      info: [
+        ['تاريخ التجزئة', m.date || 'غير مُدخل'],
+        ['الأيام منذ التجزئة', days == null ? '—' : days],
+        ['الفلوت', m.float ? m.float + 'M' : 'غير مُدخل'],
+        ['أدنى RSI', minR.toFixed(1)],
+        ['نسبة الهبوط', (drop * 100).toFixed(0) + '%']
+      ]
+    });
+    r.st = r.ready ? 'جاهز فنيًا' : r.score >= 55 ? 'شبه جاهز' : 'متابعة';
+    r.cls = r.ready ? 'go' : r.score >= 55 ? 'watch' : '';
+    return r;
+  }
+
+  global.Split = { analyze: analyze, CFG: CFG };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+<script>
+/* =============================================================================
+ * chart.js — محرك الشارت (Canvas 2D، بلا أي مكتبات خارجية)
+ * -----------------------------------------------------------------------------
+ * شموع يابانية + حجم + RSI في ألواح متزامنة، مع:
+ *   • تكبير/تصوير بالعجلة مرتكز على المؤشر + سحب للتحريك
+ *   • مؤشّر تقاطع (crosshair) مع قراءة OHLCV
+ *   • مقياس لوغاريتمي اختياري + مقياس سعر تلقائي بخطوات "نظيفة"
+ *   • طبقة الوتد الهابط: الخطّان + التعبئة + القمّة + الأهداف + وقف الخسارة
+ *   • طبقة رسم يدوي (خط اتجاه / أفقي / فيبوناتشي / منطقة / قياس)
+ *   • علامات الأخبار وعلامات الاختراق وإعادة الاختبار
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const C = {
+    up: '#12c48b', down: '#f0455a',
+    upFill: 'rgba(18,196,139,0.95)', downFill: 'rgba(240,69,90,0.95)',
+    grid: 'rgba(255,255,255,0.045)',
+    gridStrong: 'rgba(255,255,255,0.085)',
+    axis: '#64748b', axisDim: '#3f4a5e',
+    txt: '#cbd5e1', txtDim: '#64748b',
+    cross: 'rgba(148,163,184,0.55)',
+    ema9: '#f0b90b', ema21: '#3b82f6', ema50: '#a855f7', sma200: '#94a3b8',
+    wedgeUp: '#e8edf4', wedgeLo: '#cfd8e3', wedgeFill: 'rgba(232,237,244,0.03)',
+    entry: '#d4b43a', stop: '#f6465d', target: '#2ebd85',
+    zoneT: 'rgba(23,116,97,0.42)', zoneE: 'rgba(148,124,34,0.50)', zoneS: 'rgba(138,45,58,0.46)',
+    volUp: 'rgba(18,196,139,0.45)', volDown: 'rgba(240,69,90,0.45)', volMa: '#8b95a8',
+    rsi: '#a78bfa', news: '#f5a623'
+  };
+
+  const FONT = '11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const FONT_B = '600 11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const FONT_S = '10px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+
+  function niceStep(range, target) {
+    const raw = range / target;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag;
+    const step = norm >= 7.5 ? 10 : norm >= 3.5 ? 5 : norm >= 2.2 ? 2.5 : norm >= 1.4 ? 2 : 1;
+    return step * mag;
+  }
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  class Chart {
+    constructor(canvas, opts) {
+      this.cv = canvas;
+      this.ctx = canvas.getContext('2d');
+      this.o = Object.assign({
+        showVolume: true, showRsi: true, showEma: true, log: false,
+        volumeH: 74, rsiH: 104, axisW: 66, timeH: 24, padT: 14, padB: 6, padL: 2
+      }, opts || {});
+      this.bars = [];
+      this.tf = '1D';
+      this.symbol = '';
+      this.chartType = 'candles';
+      this.wedge = null;
+      this.drawings = [];
+      this.activeDrawing = null;
+      this.tool = 'cursor';
+      this.news = [];
+      this.viewFrom = 0; this.viewTo = 100;
+      this.mouse = null;
+      this.hover = null;
+      this.onPick = null;
+      this.onCursor = null;
+      this._dpr = 1;
+      this._bindEvents();
+    }
+
+    /* ------------------------------ البيانات ----------------------------- */
+    setData(bars, tf, symbol) {
+      this.bars = bars || [];
+      this.tf = tf; this.symbol = symbol;
+      // إسقاط أي وتد/أخبار سابقة: فهارسها تخصّ مصفوفة الشموع القديمة
+      this.wedge = null;
+      this.news = [];
+      this.mouse = null; this.hover = null;
+      this.invalidateIndicators();
+      const vis = Math.min(this.bars.length, tf === '1D' || tf === '1W' ? 150 : 180);
+      this.viewTo = this.bars.length;
+      this.viewFrom = Math.max(0, this.viewTo - vis);
+      this.requestDraw();
+    }
+    setWedge(w) { this.wedge = w; this.requestDraw(); }
+    setDrawings(d) { this.drawings = d || []; this.requestDraw(); }
+    setNews(n) { this.news = n || []; this.requestDraw(); }
+    setTool(t) { this.tool = t; this.cv.style.cursor = t === 'cursor' ? 'crosshair' : 'copy'; }
+
+    /* ------------------------------ الهندسة ------------------------------ */
+    _geom() {
+      const w = this.cv.clientWidth, h = this.cv.clientHeight;
+      const o = this.o;
+      const plotW = Math.max(40, w - o.axisW - o.padL);
+      const volH = o.showVolume ? o.volumeH : 0;
+      const rsiH = o.showRsi ? o.rsiH : 0;
+      const gaps = (o.showVolume ? 8 : 0) + (o.showRsi ? 8 : 0);
+      const priceH = Math.max(60, h - o.timeH - o.padT - o.padB - volH - rsiH - gaps);
+      const priceTop = o.padT;
+      const volTop = priceTop + priceH + 8;
+      const rsiTop = volTop + (o.showVolume ? volH + 8 : 0);
+      return { w, h, plotW, priceH, priceTop, volH, volTop, rsiH, rsiTop, axisX: o.padL + plotW };
+    }
+
+    _range() {
+      const i0 = Math.max(0, Math.floor(this.viewFrom));
+      const i1 = Math.min(this.bars.length - 1, Math.ceil(this.viewTo));
+      let hi = -Infinity, lo = Infinity;
+      for (let i = i0; i <= i1; i++) { if (this.bars[i].h > hi) hi = this.bars[i].h; if (this.bars[i].l < lo) lo = this.bars[i].l; }
+      // أهداف الوتد تدخل في المقياس إن كانت ضمن الأفق
+      if (this.wedge) {
+        const w = this.wedge;
+        if (w.status !== 'failed') {
+          hi = Math.max(hi, w.targets[2].price);
+          lo = Math.min(lo, w.stop);
+        }
+      }
+      if (hi === lo) { hi += 1; lo -= 1; }
+      const pad = (hi - lo) * 0.08;
+      return { hi: hi + pad, lo: Math.max(0, lo - pad) };
+    }
+
+    barW() { return this._geom().plotW / Math.max(1, this.viewTo - this.viewFrom); }
+    xAt(i) { return this.o.padL + (i + 0.5 - this.viewFrom) * this.barW(); }
+    iAt(x) { return this.viewFrom + (x - this.o.padL) / this.barW() - 0.5; }
+
+    yAt(p, g, r) {
+      if (this.o.log) {
+        const a = Math.log(Math.max(r.lo, 1e-9)), b = Math.log(Math.max(r.hi, 1e-9));
+        return g.priceTop + (b - Math.log(Math.max(p, 1e-9))) / Math.max(b - a, 1e-9) * g.priceH;
+      }
+      return g.priceTop + (r.hi - p) / (r.hi - r.lo) * g.priceH;
+    }
+    pAt(y, g, r) {
+      if (this.o.log) {
+        const a = Math.log(Math.max(r.lo, 1e-9)), b = Math.log(Math.max(r.hi, 1e-9));
+        return Math.exp(b - (y - g.priceTop) / g.priceH * (b - a));
+      }
+      return r.hi - (y - g.priceTop) / g.priceH * (r.hi - r.lo);
+    }
+
+    /* ------------------------------ الأحداث ------------------------------ */
+    _bindEvents() {
+      const cv = this.cv;
+      let drag = null;
+      cv.addEventListener('wheel', e => {
+        e.preventDefault();
+        const rect = cv.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const anchor = this.iAt(x);
+        const span = this.viewTo - this.viewFrom;
+        const factor = Math.exp(e.deltaY * 0.0016);
+        let ns = Math.max(12, Math.min(this.bars.length, span * factor));
+        const ratio = (anchor - this.viewFrom) / span;
+        this.viewFrom = anchor - ratio * ns;
+        this.viewTo = this.viewFrom + ns;
+        this._clamp();
+        this.requestDraw();
+      }, { passive: false });
+
+      cv.addEventListener('mousedown', e => {
+        const rect = cv.getBoundingClientRect();
+        const x = e.clientX - rect.left, y = e.clientY - rect.top;
+        if (this.tool !== 'cursor') {
+          const idx = Math.round(this.iAt(x));
+          const g = this._geom(), r = this._range();
+          const price = this.pAt(y, g, r);
+          const d = { type: this.tool, i0: idx, p0: price, i1: idx, p1: price, done: false };
+          this.activeDrawing = d;
+          this.drawings.push(d);
+          this.requestDraw();
+          return;
+        }
+        drag = { x: x, from: this.viewFrom, to: this.viewTo };
+        cv.style.cursor = 'grabbing';
+      });
+
+      window.addEventListener('mousemove', e => {
+        const rect = cv.getBoundingClientRect();
+        const x = e.clientX - rect.left, y = e.clientY - rect.top;
+        if (this.activeDrawing && !this.activeDrawing.done) {
+          const g = this._geom(), r = this._range();
+          this.activeDrawing.i1 = Math.round(this.iAt(x));
+          this.activeDrawing.p1 = this.pAt(y, g, r);
+          this.requestDraw();
+          return;
+        }
+        if (drag) {
+          const di = (x - drag.x) / this.barW();
+          this.viewFrom = drag.from - di; this.viewTo = drag.to - di;
+          this._clamp(); this.requestDraw();
+          return;
+        }
+        if (x < 0 || y < 0 || x > rect.width || y > rect.height) { this.mouse = null; this.requestDraw(); return; }
+        this.mouse = { x: x, y: y };
+        const idx = Math.round(this.iAt(x));
+        this.hover = (idx >= 0 && idx < this.bars.length) ? idx : null;
+        if (this.onCursor) this.onCursor(this.hover);
+        this.requestDraw();
+      });
+
+      window.addEventListener('mouseup', () => {
+        drag = null; cv.style.cursor = this.tool === 'cursor' ? 'crosshair' : 'copy';
+        if (this.activeDrawing) {
+          if (Math.abs(this.activeDrawing.i1 - this.activeDrawing.i0) < 1 && this.activeDrawing.type !== 'hline') {
+            this.drawings.pop();
+          } else this.activeDrawing.done = true;
+          this.activeDrawing = null;
+          this.setTool('cursor');
+          if (this.onDraw) this.onDraw(this.drawings);
+          this.requestDraw();
+        }
+      });
+
+      cv.addEventListener('mouseleave', () => { this.mouse = null; this.hover = null; if (this.onCursor) this.onCursor(null); this.requestDraw(); });
+      cv.addEventListener('dblclick', () => { this.reset(); });
+    }
+
+    _clamp() {
+      const span = this.viewTo - this.viewFrom;
+      if (this.viewFrom < -span * 0.15) { this.viewFrom = -span * 0.15; this.viewTo = this.viewFrom + span; }
+      if (this.viewTo > this.bars.length + span * 0.25) { this.viewTo = this.bars.length + span * 0.25; this.viewFrom = this.viewTo - span; }
+    }
+
+    reset() {
+      const vis = Math.min(this.bars.length, this.tf === '1D' || this.tf === '1W' ? 150 : 180);
+      this.viewTo = this.bars.length; this.viewFrom = Math.max(0, this.viewTo - vis);
+      this.requestDraw();
+    }
+
+    requestDraw() {
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => { this._raf = null; this.draw(); });
+    }
+
+    /* -------------------------------- الرسم ------------------------------ */
+    draw() {
+      const cv = this.cv, ctx = this.ctx;
+      const dpr = global.devicePixelRatio || 1;
+      const w = cv.clientWidth, h = cv.clientHeight;
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+        cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#070a10';
+      ctx.fillRect(0, 0, w, h);
+      if (!this.bars.length) return;
+
+      const g = this._geom(), r = this._range();
+      this._g = g; this._r = r;
+
+      this._drawGrid(g, r);
+      this._drawWedgeFill(g, r);
+      this._drawCandles(g, r);
+      this._drawEma(g, r);
+      this._drawWedgeLines(g, r);
+      this._drawLevels(g, r);
+      this._drawDrawings(g, r);
+      this._drawMarkers(g, r);
+      this._drawLastPrice(g, r);
+      this._drawWatermark(g, r);
+      if (g.volH) this._drawVolume(g, r);
+      if (g.rsiH) this._drawRsi(g, r);
+      this._drawAxis(g, r);
+      this._drawCrosshair(g, r);
+      this._drawLegend(g, r);
+    }
+
+    _visRange() {
+      return [Math.max(0, Math.floor(this.viewFrom) - 1), Math.min(this.bars.length - 1, Math.ceil(this.viewTo) + 1)];
+    }
+
+    _drawGrid(g, r) {
+      const ctx = this.ctx;
+      const step = niceStep(r.hi - r.lo, 7);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = C.grid;
+      ctx.beginPath();
+      const start = Math.ceil(r.lo / step) * step;
+      for (let p = start; p <= r.hi; p += step) {
+        const y = Math.round(this.yAt(p, g, r)) + 0.5;
+        ctx.moveTo(this.o.padL, y); ctx.lineTo(g.axisX, y);
+      }
+      ctx.stroke();
+      // فواصل زمنية
+      const [i0, i1] = this._visRange();
+      const spanDays = Math.max(1, Math.round((this.viewTo - this.viewFrom) / (this.tf === '1m' ? 390 : this.tf === '5m' ? 78 : this.tf === '15m' ? 26 : this.tf === '1H' ? 6.5 : this.tf === '4H' ? 1.6 : this.tf === '1W' ? 0.2 : 1)));
+      const every = spanDays > 400 ? 60 : spanDays > 160 ? 20 : spanDays > 60 ? 10 : spanDays > 20 ? 5 : 1;
+      ctx.strokeStyle = C.grid;
+      ctx.beginPath();
+      let lastDay = -1, count = 0;
+      for (let i = i0; i <= i1; i++) {
+        const d = new Date(this.bars[i].time);
+        const day = Math.floor(this.bars[i].time / 86400000);
+        if (day !== lastDay) {
+          lastDay = day; count++;
+          if (count % every === 0) {
+            const x = Math.round(this.xAt(i - 0.5)) + 0.5;
+            ctx.moveTo(x, g.priceTop); ctx.lineTo(x, g.priceTop + g.priceH);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+
+    _drawCandles(g, r) {
+      const ctx = this.ctx;
+      const [i0, i1] = this._visRange();
+      const bw = this.barW();
+      const bodyW = Math.max(1, Math.min(bw * 0.72, 26));
+
+      // النمط الخطّي: خط الإغلاقات + تعبئة متدرّجة
+      if (this.chartType === 'line') {
+        const grad = ctx.createLinearGradient(0, g.priceTop, 0, g.priceTop + g.priceH);
+        grad.addColorStop(0, 'rgba(245,166,35,0.22)');
+        grad.addColorStop(1, 'rgba(245,166,35,0.00)');
+        ctx.beginPath();
+        ctx.moveTo(this.xAt(i0), g.priceTop + g.priceH);
+        for (let i = i0; i <= i1; i++) ctx.lineTo(this.xAt(i), this.yAt(this.bars[i].c, g, r));
+        ctx.lineTo(this.xAt(i1), g.priceTop + g.priceH);
+        ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+        ctx.beginPath();
+        for (let i = i0; i <= i1; i++) {
+          const x = this.xAt(i), y = this.yAt(this.bars[i].c, g, r);
+          i === i0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = C.wedgeUp; ctx.lineWidth = 1.6; ctx.stroke();
+        return;
+      }
+
+      const hollow = this.chartType === 'hollow';
+      for (let i = i0; i <= i1; i++) {
+        const b = this.bars[i];
+        const x = this.xAt(i);
+        const up = b.c >= b.o;
+        const col = up ? C.up : C.down;
+        const yH = this.yAt(b.h, g, r), yL = this.yAt(b.l, g, r);
+        const yO = this.yAt(b.o, g, r), yC = this.yAt(b.c, g, r);
+        ctx.strokeStyle = col;
+        ctx.fillStyle = hollow && up ? 'rgba(0,0,0,0)' : (up ? C.upFill : C.downFill);
+        ctx.lineWidth = Math.max(1, Math.min(1.6, bw * 0.12));
+        const xr = Math.round(x) + 0.5;
+        ctx.beginPath(); ctx.moveTo(xr, yH); ctx.lineTo(xr, yL); ctx.stroke();
+        const top = Math.min(yO, yC), hgt = Math.max(1, Math.abs(yC - yO));
+        if (bodyW <= 2.2) {
+          ctx.beginPath(); ctx.moveTo(xr, top); ctx.lineTo(xr, top + hgt); ctx.stroke();
+        } else if (hollow) {
+          ctx.lineWidth = 1.1;
+          ctx.strokeRect(Math.round(x - bodyW / 2) + 0.5, Math.round(top) + 0.5, Math.round(bodyW), Math.max(1, Math.round(hgt)));
+        } else {
+          ctx.fillRect(Math.round(x - bodyW / 2), Math.round(top), Math.round(bodyW), Math.round(hgt));
+        }
+      }
+    }
+
+    _lineSeries(vals, g, r, color, width) {
+      const ctx = this.ctx;
+      const [i0, i1] = this._visRange();
+      ctx.strokeStyle = color; ctx.lineWidth = width || 1.2;
+      ctx.beginPath();
+      let started = false;
+      for (let i = i0; i <= i1; i++) {
+        if (vals[i] == null) { started = false; continue; }
+        const x = this.xAt(i), y = this.yAt(vals[i], g, r);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    _drawEma(g, r) {
+      if (!this.o.showEma) return;
+      if (!this._ema) {
+        const cl = this.bars.map(b => b.c);
+        this._ema = { e9: TA.ema(cl, 9), e21: TA.ema(cl, 21), e50: TA.ema(cl, 50), s200: TA.sma(cl, 200) };
+      }
+      this._lineSeries(this._ema.e9, g, r, C.ema9, 1.1);
+      this._lineSeries(this._ema.e21, g, r, C.ema21, 1.1);
+      this._lineSeries(this._ema.e50, g, r, C.ema50, 1.1);
+      this._lineSeries(this._ema.s200, g, r, C.sma200, 1);
+    }
+    invalidateIndicators() { this._ema = null; this._rsi = null; this._vma = null; }
+
+    /* ------------------------- طبقة الوتد الهابط ------------------------- */
+    _drawWedgeFill(g, r) {
+      const w = this.wedge; if (!w || this.o.showWedgeFill === false) return;
+      const ctx = this.ctx;
+      const apex = Math.min(w.apexX, this.viewTo + (this.viewTo - this.viewFrom) * 0.35);
+      const grad = ctx.createLinearGradient(0, g.priceTop, 0, g.priceTop + g.priceH);
+      grad.addColorStop(0, 'rgba(245,166,35,0.10)');
+      grad.addColorStop(1, 'rgba(34,211,238,0.05)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      const N = 46;
+      for (let k = 0; k <= N; k++) {
+        const i = w.start + (apex - w.start) * k / N;
+        const x = this.xAt(i), y = this.yAt(w.upAt(i), g, r);
+        k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      for (let k = N; k >= 0; k--) {
+        const i = w.start + (apex - w.start) * k / N;
+        ctx.lineTo(this.xAt(i), this.yAt(w.loAt(i), g, r));
+      }
+      ctx.closePath(); ctx.fill();
+    }
+
+    _drawWedgeLines(g, r) {
+      const w = this.wedge; if (!w) return;
+      const ctx = this.ctx;
+      const apex = Math.min(w.apexX, this.viewTo + (this.viewTo - this.viewFrom) * 0.3);
+
+      const seg = (fn, from, to, color, dash, width) => {
+        ctx.save();
+        ctx.strokeStyle = color; ctx.lineWidth = width || 1.7; ctx.setLineDash(dash || []);
+        ctx.beginPath();
+        ctx.moveTo(this.xAt(from), this.yAt(fn(from), g, r));
+        ctx.lineTo(this.xAt(to), this.yAt(fn(to), g, r));
+        ctx.stroke(); ctx.restore();
+      };
+
+      // الخطّان حتى نهاية الوتد (متّصلان) ثم امتداد متقطّع نحو القمّة
+      seg(w.upAt, w.start, w.end, C.wedgeUp, [], 1.9);
+      seg(w.loAt, w.start, w.end, C.wedgeLo, [], 1.9);
+      if (apex > w.end) {
+        seg(w.upAt, w.end, apex, C.wedgeUp, [4, 4], 1.1);
+        seg(w.loAt, w.end, apex, C.wedgeLo, [4, 4], 1.1);
+      }
+
+      // نقاط اللمس على الخطّين
+      const dot = (i, p, color) => {
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(this.xAt(i), this.yAt(p, g, r), 2.6, 0, Math.PI * 2); ctx.fill();
+      };
+      for (const i of w.upper.touches) if (i <= w.end && this.bars[i]) dot(i, this.bars[i].h, C.wedgeUp);
+      for (const i of w.lower.touches) if (i <= w.end && this.bars[i]) dot(i, this.bars[i].l, C.wedgeLo);
+
+      // علامة القمّة (Apex)
+      if (apex < this.viewTo + (this.viewTo - this.viewFrom)) {
+        const ax = this.xAt(apex), ay = this.yAt(w.upAt(apex), g, r);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(245,166,35,0.85)'; ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(ax - 5, ay - 5); ctx.lineTo(ax + 5, ay + 5);
+        ctx.moveTo(ax + 5, ay - 5); ctx.lineTo(ax - 5, ay + 5);
+        ctx.stroke();
+        ctx.font = FONT_S; ctx.fillStyle = 'rgba(245,166,35,0.9)'; ctx.textAlign = 'center';
+        ctx.fillText('APEX', ax, ay - 9);
+        ctx.restore();
+      }
+
+      // تسمية النموذج داخل الوتد
+      const midI = w.start + (w.end - w.start) * 0.42;
+      const midP = (w.upAt(midI) + w.loAt(midI)) / 2;
+      ctx.save();
+      ctx.font = FONT_B; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(245,166,35,0.85)';
+      ctx.fillText('FALLING WEDGE  •  ' + w.grade + '  ' + w.confidence.toFixed(0) + '%',
+        this.xAt(midI), this.yAt(midP, g, r));
+      ctx.restore();
+    }
+
+    /* مناطق الخطة بأسلوب صور الاستراتيجية: TARGET / ENTER / STOP LOSS */
+    _drawLevels(g, r) {
+      const w = this.wedge; if (!w || w.status === 'failed') return;
+      const ctx = this.ctx;
+      /* صندوق المناطق يُثبَّت دائمًا داخل منطقة السعر بعرض ثابت بالبكسل.
+         السبب: الوتد «قيد التكوّن» لا يملك شموعًا بعد نقطة الاختراق المتوقّعة،
+         فكان الحساب القديم يُنتج عرضًا أقل من 30px فتخرج الدالة بلا أي رسم. */
+      const span = this.viewTo - this.viewFrom;
+      const brk = w.breakoutIdx >= 0 ? w.breakoutIdx : Math.min(w.end + 1, this.bars.length - 1);
+      const bx = this.xAt(brk);
+      const wantW = Math.max(82, Math.min(168, span * 0.17 * this.barW()));
+      const rightEdge = g.axisX - 6;
+      let zx0 = Math.min(bx, rightEdge - wantW);
+      zx0 = Math.max(zx0, this.o.padL + 2);
+      const zx1 = Math.min(zx0 + wantW, rightEdge);
+      if (zx1 - zx0 < 40) return;
+      const cx = (zx0 + zx1) / 2;
+
+      const yT3 = this.yAt(w.targets[2].price, g, r);
+      const yE = this.yAt(w.entry, g, r);
+      const yS = this.yAt(w.stop, g, r);
+      const band = Math.max(7, Math.min(30, (yS - yE) * 0.30));
+      const yEnterTop = yE - band, yEnterBot = yE + band;
+
+      /* خط وصل من نقطة الاختراق/القمة المتوقّعة إلى صندوق المناطق */
+      if (bx > zx1 + 2 || bx < zx0 - 2) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(232,237,244,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+        ctx.beginPath(); ctx.moveTo(Math.max(this.o.padL, Math.min(bx, g.axisX)), yE);
+        ctx.lineTo(bx > zx1 ? zx1 : zx0, yE); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = FONT_S; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(232,237,244,0.55)';
+        ctx.fillText('BREAK', Math.max(this.o.padL + 18, Math.min(bx, g.axisX - 18)), g.priceTop + g.priceH - 8);
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const zone = (yTop, yBot, fill) => {
+        if (yBot - yTop < 1) return;
+        ctx.fillStyle = fill;
+        ctx.fillRect(zx0, yTop, zx1 - zx0, yBot - yTop);
+      };
+
+      // TARGET (من أعلى الهدف الثالث حتى أعلى شريط الدخول)
+      zone(Math.min(yT3, yEnterTop), yEnterTop, C.zoneT);
+      // ENTER (شريط رفيع حول سعر الدخول)
+      zone(yEnterTop, yEnterBot, C.zoneE);
+      // STOP LOSS (من أسفل شريط الدخول حتى الوقف)
+      zone(yEnterBot, Math.max(yS, yEnterBot), C.zoneS);
+
+      // حدود متقطعة خارجية
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = C.target; ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(zx0, yT3); ctx.lineTo(zx1, yT3); ctx.stroke();
+      ctx.strokeStyle = C.stop;
+      ctx.beginPath(); ctx.moveTo(zx0, yS); ctx.lineTo(zx1, yS); ctx.stroke();
+      ctx.setLineDash([]);
+      // حدّا شريط الدخول
+      ctx.strokeStyle = C.entry; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(zx0, yEnterTop); ctx.lineTo(zx1, yEnterTop); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(zx0, yEnterBot); ctx.lineTo(zx1, yEnterBot); ctx.stroke();
+
+      // خطوط الأهداف الداخلية (T1/T2) خفيفة داخل منطقة الهدف
+      ctx.setLineDash([3, 4]); ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(46,189,133,0.55)';
+      ctx.font = FONT_S;
+      [w.targets[0], w.targets[1]].forEach((t, k) => {
+        const y = this.yAt(t.price, g, r);
+        if (y > yT3 && y < yEnterTop) {
+          ctx.beginPath(); ctx.moveTo(zx0, y); ctx.lineTo(zx1, y); ctx.stroke();
+          ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(46,189,133,0.8)';
+          ctx.fillText('T' + (k + 1), zx0 + 4, y - 6);
+          ctx.textAlign = 'center';
+        }
+      });
+      ctx.setLineDash([]);
+
+      // التسميات الكبرى
+      /* الانتباه: الوسائط (txt, x, y, size) — كانت (txt, y, size) فتُستدعى بأربعة
+         وسائط، فيقع cx في موضع y وتُطبع التسمية خارج الشارت بخط عملاق. */
+      const label = (txt, x, y, size) => {
+        ctx.font = '700 ' + size + 'px -apple-system,"Segoe UI",Roboto,sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 1;
+        ctx.fillText(txt, x, y);
+        ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      };
+      const targetH = yEnterTop - yT3, stopH = yS - yEnterBot;
+      if (targetH > 26) label('TARGET', cx, (yT3 + yEnterTop) / 2, 13);
+      else if (targetH > 9) label('TARGET', cx, (yT3 + yEnterTop) / 2, 9);
+      label('ENTER', cx, (yEnterTop + yEnterBot) / 2, Math.min(11, Math.max(8, band * 0.75)));
+      if (stopH > 16) label('STOP LOSS', cx, (yEnterBot + yS) / 2, 12);
+      else if (stopH > 8) label('STOP', cx, (yEnterBot + yS) / 2, 9);
+
+      // سهم الدخول الأخضر عند الاختراق
+      const ax = zx0 - 9, ay = yE;
+      ctx.fillStyle = '#2ebd85';
+      ctx.beginPath();
+      ctx.moveTo(ax, ay - 8); ctx.lineTo(ax - 5.5, ay + 1); ctx.lineTo(ax - 2, ay + 1);
+      ctx.lineTo(ax - 2, ay + 7); ctx.lineTo(ax + 2, ay + 7); ctx.lineTo(ax + 2, ay + 1);
+      ctx.lineTo(ax + 5.5, ay + 1); ctx.closePath(); ctx.fill();
+
+      // قيم صغيرة على يمين المناطق
+      ctx.font = FONT_S; ctx.textAlign = 'left';
+      ctx.fillStyle = '#2ebd85'; ctx.fillText(fmtP(w.targets[2].price), zx1 + 4, yT3);
+      ctx.fillStyle = '#d4b43a'; ctx.fillText(fmtP(w.entry), zx1 + 4, yE);
+      ctx.fillStyle = '#f6465d'; ctx.fillText(fmtP(w.stop), zx1 + 4, yS);
+
+      ctx.restore();
+    }
+
+    /* ---------------------------- طبقة الرسم ----------------------------- */
+    _drawDrawings(g, r) {
+      const ctx = this.ctx;
+      for (const d of this.drawings) {
+        if (!d) continue;
+        const x0 = this.xAt(d.i0), x1 = this.xAt(d.i1);
+        const y0 = this.yAt(d.p0, g, r), y1 = this.yAt(d.p1, g, r);
+        ctx.save();
+        if (d.type === 'trendline' || d.type === 'ray') {
+          ctx.strokeStyle = '#e2b400'; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.moveTo(x0, y0);
+          if (d.type === 'ray') {
+            const dx = x1 - x0 || 1, dy = y1 - y0, k = 4;
+            ctx.lineTo(x0 + dx * k, y0 + dy * k);
+          } else ctx.lineTo(x1, y1);
+          ctx.stroke();
+          node(x0, y0); node(x1, y1);
+        } else if (d.type === 'hline') {
+          ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.3; ctx.setLineDash([6, 4]);
+          ctx.beginPath(); ctx.moveTo(this.o.padL, y0); ctx.lineTo(g.axisX, y0); ctx.stroke();
+          tag(g.axisX, y0, fmtP(d.p0), '#3b82f6');
+        } else if (d.type === 'rect') {
+          ctx.fillStyle = 'rgba(59,130,246,0.10)';
+          ctx.strokeStyle = 'rgba(59,130,246,0.75)'; ctx.lineWidth = 1.2;
+          ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+          ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+        } else if (d.type === 'fib') {
+          const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+          const cols = ['#64748b', '#f0455a', '#f5a623', '#eab308', '#12c48b', '#22d3ee', '#64748b'];
+          const lo = Math.min(d.p0, d.p1), hi = Math.max(d.p0, d.p1);
+          ctx.font = FONT_S;
+          levels.forEach((L, k) => {
+            const p = hi - (hi - lo) * L;
+            const y = this.yAt(p, g, r);
+            ctx.strokeStyle = cols[k]; ctx.globalAlpha = 0.75; ctx.lineWidth = 1;
+            ctx.setLineDash(L === 0 || L === 1 ? [] : [4, 4]);
+            ctx.beginPath(); ctx.moveTo(Math.min(x0, x1), y); ctx.lineTo(Math.max(x0, x1), y); ctx.stroke();
+            ctx.globalAlpha = 1; ctx.setLineDash([]);
+            ctx.fillStyle = cols[k]; ctx.textAlign = 'left';
+            ctx.fillText(L.toFixed(3) + '  ' + fmtP(p), Math.max(x0, x1) + 5, y + 3);
+          });
+        } else if (d.type === 'measure') {
+          ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+          ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+          ctx.setLineDash([]);
+          const pct = (d.p1 / d.p0 - 1) * 100;
+          const lbl = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%   ' + fmtP(d.p0) + ' → ' + fmtP(d.p1)
+            + '   (' + Math.abs(d.i1 - d.i0) + ' شمعة)';
+          ctx.font = FONT_B; ctx.textAlign = 'left';
+          const tw = ctx.measureText(lbl).width + 12;
+          ctx.fillStyle = '#0f172a'; ctx.strokeStyle = '#334155';
+          ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1) - 20, tw, 17);
+          ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1) - 20, tw, 17);
+          ctx.fillStyle = pct >= 0 ? C.up : C.down;
+          ctx.fillText(lbl, Math.min(x0, x1) + 6, Math.min(y0, y1) - 8);
+        }
+        ctx.restore();
+      }
+      function node(x, y) {
+        ctx.fillStyle = '#0b1220'; ctx.strokeStyle = '#e2b400'; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(x, y, 3.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+      function tag(x, y, text, color) {
+        ctx.font = FONT_S;
+        const w = ctx.measureText(text).width + 10;
+        ctx.fillStyle = color; ctx.fillRect(x, y - 8, w, 16);
+        ctx.fillStyle = '#05070b'; ctx.textAlign = 'left';
+        ctx.fillText(text, x + 5, y + 4);
+      }
+    }
+
+    /* --------------------------- العلامات والأخبار ------------------------ */
+    _drawMarkers(g, r) {
+      const w = this.wedge, ctx = this.ctx;
+      const tri = (i, p, color, up, label) => {
+        const x = this.xAt(i), y = this.yAt(p, g, r) + (up ? 12 : -12);
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        if (up) { ctx.moveTo(x, y - 6); ctx.lineTo(x - 5, y + 3); ctx.lineTo(x + 5, y + 3); }
+        else { ctx.moveTo(x, y + 6); ctx.lineTo(x - 5, y - 3); ctx.lineTo(x + 5, y - 3); }
+        ctx.closePath(); ctx.fill();
+        if (label) {
+          ctx.font = FONT_S; ctx.textAlign = 'center';
+          ctx.fillStyle = color;
+          ctx.fillText(label, x, up ? y + 14 : y - 8);
+        }
+        ctx.restore();
+      };
+      if (w) {
+        if (w.breakoutIdx >= 0) tri(w.breakoutIdx, this.bars[w.breakoutIdx].l, C.target, true, 'BREAKOUT');
+        if (w.retestIdx >= 0) tri(w.retestIdx, this.bars[w.retestIdx].l, C.entry, true, 'RETEST');
+        if (w.failedIdx >= 0) tri(w.failedIdx, this.bars[w.failedIdx].h, C.down, false, 'FAILED');
+      }
+      // أخبار
+      for (const nw of this.news) {
+        if (nw.idx == null || nw.idx < this.viewFrom || nw.idx > this.viewTo) continue;
+        const x = this.xAt(nw.idx);
+        const y = this.yAt(this.bars[nw.idx].h, g, r) - 10;
+        ctx.save();
+        ctx.fillStyle = C.news;
+        ctx.beginPath();
+        ctx.moveTo(x, y - 4.5); ctx.lineTo(x + 4.5, y); ctx.lineTo(x, y + 4.5); ctx.lineTo(x - 4.5, y);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    _drawLastPrice(g, r) {
+      const b = this.bars[this.bars.length - 1]; if (!b) return;
+      const ctx = this.ctx;
+      const y = this.yAt(b.c, g, r);
+      const up = b.c >= b.o;
+      const col = up ? C.up : C.down;
+      ctx.save();
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.7; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(this.o.padL, y); ctx.lineTo(g.axisX, y); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.fillStyle = col;
+      ctx.fillRect(g.axisX, y - 9, this.o.axisW, 18);
+      ctx.fillStyle = '#04070c'; ctx.font = FONT_B; ctx.textAlign = 'left';
+      ctx.fillText(fmtP(b.c), g.axisX + 6, y + 4);
+      ctx.restore();
+    }
+
+    _drawWatermark(g, r) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.font = '600 26px -apple-system,"Segoe UI",Roboto,sans-serif';
+      ctx.fillStyle = 'rgba(148,163,184,0.07)';
+      ctx.textAlign = 'left';
+      ctx.fillText(this.symbol + ' · ' + this.tf, this.o.padL + 14, g.priceTop + g.priceH - 16);
+      ctx.font = '600 12px ui-monospace,Menlo,Consolas,monospace';
+      ctx.fillStyle = 'rgba(245,166,35,0.10)';
+      ctx.fillText('FALLING WEDGE TERMINAL', this.o.padL + 15, g.priceTop + g.priceH - 36);
+      ctx.restore();
+    }
+
+    _drawVolume(g, r) {
+      const ctx = this.ctx;
+      const [i0, i1] = this._visRange();
+      let mx = 0;
+      for (let i = i0; i <= i1; i++) if (this.bars[i].v > mx) mx = this.bars[i].v;
+      if (!mx) return;
+      const bw = this.barW(), bodyW = Math.max(1, Math.min(bw * 0.72, 26));
+      ctx.save();
+      ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(this.o.padL, g.volTop + 0.5); ctx.lineTo(g.axisX, g.volTop + 0.5); ctx.stroke();
+      for (let i = i0; i <= i1; i++) {
+        const b = this.bars[i];
+        const h = (b.v / mx) * (g.volH - 12);
+        ctx.fillStyle = b.c >= b.o ? C.volUp : C.volDown;
+        ctx.fillRect(Math.round(this.xAt(i) - bodyW / 2), g.volTop + g.volH - h, Math.max(1, Math.round(bodyW)), h);
+      }
+      if (!this._vma) this._vma = TA.volumeMA(this.bars, 20);
+      ctx.strokeStyle = C.volMa; ctx.lineWidth = 1; ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      for (let i = i0; i <= i1; i++) {
+        if (this._vma[i] == null) continue;
+        const x = this.xAt(i), y = g.volTop + g.volH - (this._vma[i] / mx) * (g.volH - 12);
+        i === i0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.font = FONT_S; ctx.fillStyle = C.txtDim; ctx.textAlign = 'left';
+      ctx.fillText('VOLUME', this.o.padL + 6, g.volTop + 11);
+      ctx.restore();
+    }
+
+    _drawRsi(g, r) {
+      const ctx = this.ctx;
+      if (!this._rsi) this._rsi = TA.rsi(this.bars, 14);
+      const [i0, i1] = this._visRange();
+      const yFor = v => g.rsiTop + (100 - v) / 100 * g.rsiH;
+      ctx.save();
+      ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(this.o.padL, g.rsiTop + 0.5); ctx.lineTo(g.axisX, g.rsiTop + 0.5); ctx.stroke();
+      // نطاقات
+      ctx.fillStyle = 'rgba(240,69,90,0.05)';
+      ctx.fillRect(this.o.padL, yFor(100), g.plotW, yFor(70) - yFor(100));
+      ctx.fillStyle = 'rgba(18,196,139,0.05)';
+      ctx.fillRect(this.o.padL, yFor(30), g.plotW, yFor(0) - yFor(30));
+      ctx.strokeStyle = C.gridStrong; ctx.setLineDash([3, 4]);
+      [30, 50, 70].forEach(v => {
+        ctx.beginPath(); ctx.moveTo(this.o.padL, yFor(v)); ctx.lineTo(g.axisX, yFor(v)); ctx.stroke();
+      });
+      ctx.setLineDash([]);
+      ctx.strokeStyle = C.rsi; ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      let st = false;
+      for (let i = i0; i <= i1; i++) {
+        if (this._rsi[i] == null) { st = false; continue; }
+        const x = this.xAt(i), y = yFor(this._rsi[i]);
+        st ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), st = true);
+      }
+      ctx.stroke();
+      ctx.font = FONT_S; ctx.fillStyle = C.txtDim; ctx.textAlign = 'left';
+      ctx.fillText('RSI 14', this.o.padL + 6, g.rsiTop + 11);
+      // تباعد صاعد داخل الوتد
+      const w = this.wedge;
+      if (w && w.divergence) {
+        const d = w.divergence;
+        ctx.strokeStyle = '#12c48b'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(this.xAt(d.from), yFor(this._rsi[d.from]));
+        ctx.lineTo(this.xAt(d.to), yFor(this._rsi[d.to]));
+        ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#12c48b'; ctx.textAlign = 'center';
+        ctx.fillText('BULL DIV', this.xAt((d.from + d.to) / 2), yFor(Math.max(this._rsi[d.from], this._rsi[d.to])) - 6);
+      }
+      ctx.restore();
+    }
+
+    _drawAxis(g, r) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.fillStyle = '#070a10';
+      ctx.fillRect(g.axisX, 0, this.o.axisW, g.h);
+      ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(g.axisX + 0.5, 0); ctx.lineTo(g.axisX + 0.5, g.h); ctx.stroke();
+      const step = niceStep(r.hi - r.lo, 7);
+      ctx.font = FONT; ctx.fillStyle = C.axis; ctx.textAlign = 'left';
+      for (let p = Math.ceil(r.lo / step) * step; p <= r.hi; p += step) {
+        const y = this.yAt(p, g, r);
+        ctx.fillText(fmtP(p), g.axisX + 7, y + 3.5);
+      }
+      // محور الزمن
+      const [i0, i1] = this._visRange();
+      ctx.fillStyle = '#070a10';
+      ctx.fillRect(0, g.h - this.o.timeH, g.w, this.o.timeH);
+      ctx.strokeStyle = C.grid;
+      ctx.beginPath(); ctx.moveTo(0, g.h - this.o.timeH + 0.5); ctx.lineTo(g.w, g.h - this.o.timeH + 0.5); ctx.stroke();
+      const target = Math.max(3, Math.floor(g.plotW / 96));
+      const count = Math.max(1, Math.round(this.viewTo - this.viewFrom));
+      const stride = Math.max(1, Math.ceil(count / target));
+      ctx.fillStyle = C.axis; ctx.textAlign = 'center';
+      const intra = this.tf !== '1D' && this.tf !== '1W';
+      for (let i = Math.max(0, Math.ceil(this.viewFrom)); i <= i1; i++) {
+        if ((i - Math.ceil(this.viewFrom)) % stride !== 0) continue;
+        const x = this.xAt(i);
+        if (x < this.o.padL + 20 || x > g.axisX - 20) continue;
+        ctx.fillText(timeLabel(this.bars[i].time, intra), x, g.h - this.o.timeH + 15);
+      }
+      ctx.restore();
+    }
+
+    _drawCrosshair(g, r) {
+      if (!this.mouse) return;
+      const ctx = this.ctx, m = this.mouse;
+      if (m.x > g.axisX) return;
+      ctx.save();
+      ctx.strokeStyle = C.cross; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(Math.round(m.x) + 0.5, g.priceTop); ctx.lineTo(Math.round(m.x) + 0.5, g.h - this.o.timeH);
+      if (m.y >= g.priceTop && m.y <= g.priceTop + g.priceH) {
+        ctx.moveTo(this.o.padL, Math.round(m.y) + 0.5); ctx.lineTo(g.axisX, Math.round(m.y) + 0.5);
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+      // بطاقة السعر
+      if (m.y >= g.priceTop && m.y <= g.priceTop + g.priceH) {
+        const p = this.pAt(m.y, g, r);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(g.axisX, m.y - 9, this.o.axisW, 18);
+        ctx.fillStyle = '#e2e8f0'; ctx.font = FONT_B; ctx.textAlign = 'left';
+        ctx.fillText(fmtP(p), g.axisX + 6, m.y + 4);
+      }
+      // بطاقة الزمن
+      const idx = Math.round(this.iAt(m.x));
+      if (idx >= 0 && idx < this.bars.length) {
+        const lbl = fullTimeLabel(this.bars[idx].time, this.tf);
+        ctx.font = FONT;
+        const tw = ctx.measureText(lbl).width + 14;
+        let bx = Math.min(m.x - tw / 2, g.axisX - tw);
+        bx = Math.max(this.o.padL, bx);
+        ctx.fillStyle = '#1e293b'; ctx.fillRect(bx, g.h - this.o.timeH + 2, tw, 17);
+        ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'left';
+        ctx.fillText(lbl, bx + 7, g.h - this.o.timeH + 14);
+      }
+      ctx.restore();
+    }
+
+    _drawLegend(g, r) {
+      const ctx = this.ctx;
+      const i = this.hover != null ? this.hover : this.bars.length - 1;
+      const b = this.bars[i]; if (!b) return;
+      const up = b.c >= b.o;
+      const pct = i > 0 ? (b.c / this.bars[i - 1].c - 1) * 100 : 0;
+      const col = up ? C.up : C.down;
+      ctx.save();
+      ctx.font = FONT;
+      let x = this.o.padL + 8, y = g.priceTop + 4;
+      const item = (label, val, color) => {
+        ctx.fillStyle = C.txtDim; ctx.textAlign = 'left';
+        ctx.fillText(label, x, y + 10); x += ctx.measureText(label).width + 4;
+        ctx.fillStyle = color || C.txt; ctx.font = FONT_B;
+        ctx.fillText(val, x, y + 10); x += ctx.measureText(val).width + 11; ctx.font = FONT;
+      };
+      const pieces = [
+        [this.symbol, '#e2e8f0', true], [this.tf, C.txtDim, false],
+        ['O', C.txtDim, false], [fmtP(b.o), col, true],
+        ['H', C.txtDim, false], [fmtP(b.h), col, true],
+        ['L', C.txtDim, false], [fmtP(b.l), col, true],
+        ['C', C.txtDim, false], [fmtP(b.c), col, true],
+        [(pct >= 0 ? '+' : '') + pct.toFixed(2) + '%', col, true],
+        ['V', C.txtDim, false], [fmtVol(b.v), C.txtDim, true]
+      ];
+      ctx.font = FONT;
+      let total = 0;
+      for (const pc of pieces) { ctx.font = pc[2] ? FONT_B : FONT; total += ctx.measureText(pc[0]).width + 9; }
+      ctx.fillStyle = 'rgba(8,11,17,0.86)';
+      ctx.fillRect(this.o.padL + 3, y, Math.min(g.plotW - 8, total + 8), 18);
+      x = this.o.padL + 8;
+      for (const pc of pieces) {
+        ctx.font = pc[2] ? FONT_B : FONT;
+        ctx.fillStyle = pc[1]; ctx.textAlign = 'left';
+        ctx.fillText(pc[0], x, y + 10);
+        x += ctx.measureText(pc[0]).width + 9;
+      }
+      ctx.restore();
+    }
+
+    /* ------------------------------ تصدير -------------------------------- */
+    toPNG() { return this.cv.toDataURL('image/png'); }
+  }
+
+  /* ----------------------------- أدوات مساعدة ---------------------------- */
+  function fmtP(p) {
+    if (p == null || !isFinite(p)) return '—';
+    if (p >= 1000) return p.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    if (p >= 100) return p.toFixed(2);
+    if (p >= 1) return p.toFixed(3);
+    if (p >= 0.01) return p.toFixed(4);
+    return p.toFixed(5);
+  }
+  function fmtVol(v) {
+    if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+    if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+    if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+    return String(v);
+  }
+  function timeLabel(t, intra) {
+    const d = new Date(t - 4 * 3600000);   // ET
+    if (intra) {
+      const h = d.getUTCHours(), m = d.getUTCMinutes();
+      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+    return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
+  }
+  function fullTimeLabel(t, tf) {
+    const d = new Date(t - 4 * 3600000);
+    const base = MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
+    if (tf === '1D' || tf === '1W') return base;
+    return base + '  ' + String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') + ' ET';
+  }
+
+  global.ChartKit = { Chart: Chart, C: C, fmtP: fmtP, fmtVol: fmtVol, niceStep: niceStep, timeLabel: timeLabel, fullTimeLabel: fullTimeLabel };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* =============================================================================
+ * app.js — طبقة التطبيق: الواجهة، اللوحات، الاختصارات، ولوحة الأوامر
+ * ========================================================================== */
+(function () {
+  'use strict';
+
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  const M = window.Market, TA = window.TA, Wedge = window.Wedge;
+  const { Chart, fmtP, fmtVol } = window.ChartKit;
+
+  /* ================================ الحالة ================================ */
+  const state = {
+    symbol: 'SOUN',
+    tf: '1D',
+    strategy: 'wedge',
+    wedge: null,
+    scans: new Map(),          // tf -> نتائج الفحص
+    drawings: {},              // "SYM|TF" -> مصفوفة رسومات
+    news: [],
+    chartType: 'candles'
+  };
+
+  const chart = new Chart($('#chart'), {});
+  chart.onDraw = ds => { if (state.wedgeKey) localStorage.setItem('fx.draw.' + state.wedgeKey, JSON.stringify(ds)); };
+  chart.onCursor = i => {
+    const el = $('#sbCursor');
+    if (i == null || !chart.bars[i]) { el.textContent = '—'; return; }
+    const b = chart.bars[i];
+    el.innerHTML = `O <b>${fmtP(b.o)}</b> · H <b>${fmtP(b.h)}</b> · L <b>${fmtP(b.l)}</b> · C <b>${fmtP(b.c)}</b> · V <b>${fmtVol(b.v)}</b>`;
+  };
+
+  new ResizeObserver(() => chart.requestDraw()).observe($('#chart'));
+
+  /* ============================== أدوات مساعدة ============================ */
+  const key = () => state.symbol + '|' + state.tf;
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const confColor = c => c >= 84 ? '#12c48b' : c >= 74 ? '#22d3ee' : c >= 62 ? '#f5a623' : '#f0455a';
+
+  const STATUS_AR = {
+    forming: 'قيد التكوّن', breakout: 'اختراق الآن', running: 'اختراق نشط',
+    extended: 'اختراق ممتد', failed: 'فشل النموذج'
+  };
+
+  function toast(title, desc, kind) {
+    const el = document.createElement('div');
+    el.className = 'toast' + (kind ? ' ' + kind : '');
+    el.innerHTML = `<div class="t">${title}</div>` + (desc ? `<div class="d">${desc}</div>` : '');
+    $('#toasts').appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 3400);
+    setTimeout(() => el.remove(), 3800);
+  }
+
+  function ago(ts) {
+    const d = (Date.now() - new Date(ts).getTime()) / 1000;
+    if (d < 3600) return Math.max(1, Math.round(d / 60)) + ' د';
+    if (d < 86400) return Math.round(d / 3600) + ' س';
+    return Math.round(d / 86400) + ' ي';
+  }
+
+  /* ============================== شريط الأسعار ============================ */
+  function renderTape() {
+    const items = M.SYMBOLS.map(t => {
+      const q = M.quote(t);
+      const up = q.chg >= 0;
+      return `<div class="tape-item" data-t="${t}">
+        <span class="s">${t}</span>
+        <span class="p">${fmtP(q.price)}</span>
+        <span class="c ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(q.chgPct).toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+    $('#tapeTrack').innerHTML = items + items;   // مضاعف للحلقة السلسة
+    $$('#tapeTrack .tape-item').forEach(el => el.onclick = () => setSymbol(el.dataset.t));
+  }
+
+  /* ============================== قائمة المراقبة ========================== */
+  function sparkPath(vals, w, h) {
+    if (!vals.length) return '';
+    const mn = Math.min(...vals), mx = Math.max(...vals), rg = (mx - mn) || 1;
+    return vals.map((v, i) =>
+      `${(i / (vals.length - 1) * w).toFixed(1)},${(h - (v - mn) / rg * h).toFixed(1)}`
+    ).join(' ');
+  }
+
+  function renderWatchlist() {
+    const box = $('#watchlist');
+    const scan = state.scans.get('1D') || [];
+    const bySym = Object.fromEntries(scan.map(w => [w.symbol, w]));
+    box.innerHTML = M.SYMBOLS.map(t => {
+      const q = M.quote(t);
+      const up = q.chg >= 0;
+      const w = bySym[t];
+      const chip = w ? (w.status === 'failed' ? '<span class="chip f">فشل</span>'
+        : (w.status === 'forming' ? '<span class="chip w">وتد</span>' : '<span class="chip b">اختراق</span>')) : '';
+      const col = up ? '#12c48b' : '#f0455a';
+      return `<div class="wl-row ${t === state.symbol ? 'active' : ''}" data-t="${t}">
+        <div>
+          <div class="wl-sym">${t} ${chip}</div>
+          <div class="wl-name">${q.name}</div>
+        </div>
+        <div class="wl-price">${fmtP(q.price)}</div>
+        <div class="wl-chg ${up ? 'up' : 'down'}">${up ? '+' : ''}${q.chgPct.toFixed(2)}%</div>
+        <svg class="wl-spark" viewBox="0 0 100 16" preserveAspectRatio="none">
+          <polyline points="${sparkPath(q.spark, 100, 16)}" fill="none" stroke="${col}" stroke-width="1.1" vector-effect="non-scaling-stroke"/>
+        </svg>
+      </div>`;
+    }).join('');
+    $$('#watchlist .wl-row').forEach(el => el.onclick = () => setSymbol(el.dataset.t));
+    $('#wlCount').textContent = M.SYMBOLS.length;
+  }
+
+  /* ================================ الأخبار =============================== */
+  const KIND_COLOR = { 'عاجل': '#12c48b', 'محفّز': '#22d3ee', 'خبر': '#98a5bb' };
+
+  function renderNews() {
+    const box = $('#newsFeed');
+    box.innerHTML = M.alerts.map((a, i) => {
+      const kc = KIND_COLOR[a.kind] || '#98a5bb';
+      return `
+      <div class="news-item" data-i="${i}">
+        <div class="news-top">
+          <span class="news-t" style="color:${a.score >= 4 ? '#f5a623' : '#98a5bb'}">${a.t}</span>
+          <span class="chip" style="background:${kc}22;color:${kc}">${a.kind || 'خبر'}</span>
+          <span class="dots">${[1, 2, 3, 4, 5].map(n => `<i class="${n <= a.score ? 'on' : ''}"></i>`).join('')}</span>
+          <span class="news-ago">${ago(a.ts)}</span>
+        </div>
+        <div class="news-title" dir="auto">${a.title}</div>
+        <div class="news-src" style="margin-top:3px" dir="auto">${a.catalyst ? a.catalyst + ' · ' : ''}${(a.src || '').slice(0, 34)}</div>
+      </div>`;
+    }).join('');
+    $$('#newsFeed .news-item').forEach(el => el.onclick = () => {
+      const a = M.alerts[+el.dataset.i];
+      if (M.SYMBOLS.includes(a.t)) setSymbol(a.t);
+      else toast('الرمز غير مُدرج', a.t + ' — ' + a.title.slice(0, 60));
+    });
+    $('#newsCount').textContent = M.alerts.length;
+  }
+
+  /* ============================== رأس الرمز =============================== */
+  function renderSymHead() {
+    const q = M.quote(state.symbol);
+    const up = q.chg >= 0;
+    const pos = q.hi52 > q.lo52 ? (q.price - q.lo52) / (q.hi52 - q.lo52) : 0.5;
+    $('#symHead').innerHTML = `
+      <div class="sym-id">
+        <span class="sym-ticker">${q.t}</span>
+        <span class="sym-name">${q.name} · ${q.sector}</span>
+      </div>
+      <div class="sym-price ${up ? 'up' : 'down'}">${fmtP(q.price)}</div>
+      <div class="sym-chg ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(q.chg).toFixed(4)} (${up ? '+' : ''}${q.chgPct.toFixed(2)}%)</div>
+      <div class="sym-stats">
+        <div class="stat"><span class="k">افتتاح</span><span class="v">${fmtP(q.open)}</span></div>
+        <div class="stat"><span class="k">أعلى</span><span class="v">${fmtP(q.high)}</span></div>
+        <div class="stat"><span class="k">أدنى</span><span class="v">${fmtP(q.low)}</span></div>
+        <div class="stat"><span class="k">إغلاق سابق</span><span class="v">${fmtP(q.prevClose)}</span></div>
+        <div class="stat"><span class="k">الحجم</span><span class="v">${fmtVol(q.volume)}</span></div>
+        <div class="stat"><span class="k">متوسط ٣٠ يوم</span><span class="v">${fmtVol(q.avgVol30)}</span></div>
+        <div class="stat"><span class="k">قاع ٥٢ أسبوع</span><span class="v">${fmtP(q.lo52)}</span></div>
+        <div class="stat"><span class="k">قمة ٥٢ أسبوع</span><span class="v">${fmtP(q.hi52)}</span></div>
+        <div class="stat" style="min-width:96px">
+          <span class="k">الموقع من المدى</span>
+          <span class="v" style="margin-top:5px">
+            <span style="display:block;height:4px;background:var(--bg-4);border-radius:2px;position:relative">
+              <span style="position:absolute;inset-inline-start:0;top:0;bottom:0;width:${(pos * 100).toFixed(1)}%;background:linear-gradient(90deg,#f0455a,#f5a623,#12c48b);border-radius:2px"></span>
+            </span>
+            <span style="font-size:9px;color:var(--txt-3)">${(pos * 100).toFixed(0)}%</span>
+          </span>
+        </div>
+      </div>`;
+  }
+
+  /* ============================= لوحة الإشارة ============================= */
+  function renderSignal() {
+    const box = $('#signalBody');
+    const w = state.wedge;
+    $('#sigTf').textContent = state.tf;
+    if (state.strategy === 'split') { renderSplitBody(box); return; }
+    $('#sigTitle').textContent = 'إشارة الوتد الهابط';
+    if (!w) {
+      box.innerHTML = `<div class="empty">لا يوجد وتد هابط صالح على إطار <b>${state.tf}</b> لهذا الرمز.<br>جرّب إطارًا آخر أو رمزًا من الفاحص.</div>`;
+      const badge = $('#chartBadge');
+      badge.style.display = 'none';
+      return;
+    }
+
+    const badge = $('#chartBadge');
+    badge.className = 'chart-badge' + (w.status === 'failed' ? ' fail' : (w.status === 'breakout' || w.status === 'running' ? ' brk' : ''));
+    badge.textContent = 'FALLING WEDGE · ' + w.grade + ' · ' + w.confidence.toFixed(0) + '% · ' + STATUS_AR[w.status];
+    badge.style.display = 'flex';
+
+    const cc = confColor(w.confidence);
+    const p = w.parts || {};
+    const rows = [
+      ['دقّة الخطّين (R²)', ((w.upper.r2 + w.lower.r2) / 2).toFixed(3), (p.fitScore || 0).toFixed(1) + '/18'],
+      ['عدد اللمسات', w.upper.touches.length + ' / ' + w.lower.touches.length, (p.touchScore || 0).toFixed(1) + '/28'],
+      ['انكماش المدى', (w.contraction * 100).toFixed(0) + '%', (p.contrScore || 0).toFixed(1) + '/14'],
+      ['انحسار الحجم', w.volRatio.toFixed(2) + '×', (p.volScore || 0).toFixed(1) + '/13'],
+      ['مدّة النموذج', w.bars + ' شمعة', (p.durScore || 0).toFixed(1) + '/11'],
+      ['حدّة الانحدار', ((w.upper.m * w.bars) / w.widthStart).toFixed(2), (p.slopeScore || 0).toFixed(1) + '/8']
+    ];
+
+    const checks = [
+      ['خطّا اتجاه هابطان', true],
+      ['تقارب (المقاومة أشدّ انحدارًا)', w.lower.m > w.upper.m],
+      ['القمّة (Apex) لم تُبلغ بعد', w.apexX > w.end],
+      ['انكماش المدى ≥ 28%', w.contraction >= 0.28],
+      ['انحسار الحجم داخل الوتد', w.volRatio < 0.85],
+      ['تباعد RSI صاعد', !!w.divergence],
+      ['اختراق مؤكَّد بالحجم', w.volConfirm != null && w.volConfirm > 1.4],
+      ['العائد/المخاطرة ≥ 2 عند T3', w.targets[2].rr >= 2]
+    ];
+
+    const entry = w.breakoutIdx >= 0 ? 'تمّ عند ' + fmtP(w.entry) : 'عند الاختراق ' + fmtP(w.entry);
+    const volTxt = w.volConfirm != null
+      ? `<span class="${w.volConfirm > 1.4 ? 'up' : 'down'}">${w.volConfirm.toFixed(2)}× المتوسّط</span>`
+      : '<span style="color:var(--txt-3)">لم يحدث بعد</span>';
+
+    box.innerHTML = `
+      <div class="signal-hero">
+        <div class="signal-top">
+          <div>
+            <div class="signal-title">وتد هابط — ${STATUS_AR[w.status]}</div>
+            <div class="signal-sub">${state.symbol} · ${state.tf} · ${w.bars} شمعة · ${(w.contraction * 100).toFixed(0)}% انكماش</div>
+            <div style="margin-top:7px"><span class="status-pill status-${w.status}">${STATUS_AR[w.status]}</span></div>
+          </div>
+          <div class="grade ${w.grade[0] === 'A' ? 'A' : w.grade[0]}">${w.grade}</div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-row">
+            <span class="lbl">درجة الثقة</span>
+            <span class="gauge-val" style="color:${cc}">${w.confidence.toFixed(1)}<span style="font-size:10px;color:var(--txt-3)">/100</span></span>
+          </div>
+          <div class="gauge-bar"><div class="gauge-fill" style="width:${w.confidence}%;background:linear-gradient(90deg,${cc}55,${cc})"></div></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-title">خطة الصفقة</div>
+        <div class="trade-grid">
+          <div class="tcell entry"><div class="k">الدخول</div><div class="v" style="color:#93c5fd">${fmtP(w.entry)}</div><div class="s">${entry}</div></div>
+          <div class="tcell stop"><div class="k">وقف الخسارة</div><div class="v" style="color:#f0455a">${fmtP(w.stop)}</div><div class="s">مخاطرة ${((w.risk / w.entry) * 100).toFixed(1)}%</div></div>
+          ${w.targets.map((t, i) => `
+            <div class="tcell t${i + 1}">
+              <div class="k">الهدف ${i + 1} · ${(t.pct * 100).toFixed(1)}%</div>
+              <div class="v" style="color:#12c48b">${fmtP(t.price)}</div>
+              <div class="s">R:R ${t.rr.toFixed(2)} · +${((t.price / w.entry - 1) * 100).toFixed(1)}%</div>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-title">قياسات النموذج</div>
+        ${rows.map(r => `<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]} <span style="color:var(--txt-3);font-size:9.5px">(${r[2]})</span></span></div>`).join('')}
+        <div class="kv"><span class="k">تأكيد الحجم</span><span class="v">${volTxt}</span></div>
+        <div class="kv"><span class="k">القمة المتوقّعة</span><span class="v">بعد ${Math.max(0, Math.round(w.apexX - w.end))} شمعة</span></div>
+        <div class="kv"><span class="k">أقصى عرض للوتد</span><span class="v">${fmtP(w.widthStart)} (${((w.widthStart / w.entry) * 100).toFixed(1)}%)</span></div>
+        ${w.retestIdx >= 0 ? '<div class="kv"><span class="k">إعادة الاختبار</span><span class="v up">مؤكّدة ✓</span></div>' : ''}
+      </div>
+
+      <div class="sec">
+        <div class="sec-title">قائمة التحقّق</div>
+        <div class="checklist">
+          ${checks.map(c => `<div class="chk ${c[1] ? 'ok' : 'no'}"><span class="box">${c[1] ? '✓' : '✕'}</span><span>${c[0]}</span></div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  /* ================================ الفاحص ================================ */
+  function renderScanner() {
+    const box = $('#scanner');
+    const scan = state.scans.get(state.tf);
+    if (!scan) {
+      box.innerHTML = '<div class="empty"><span class="spin"></span> جارٍ الفحص…</div>';
+      return;
+    }
+    $('#scanCount').textContent = scan.length + '/' + M.SYMBOLS.length;
+    if (!scan.length) { box.innerHTML = '<div class="empty">لا توجد أوتاد على هذا الإطار.</div>'; return; }
+    box.innerHTML = scan.map(w => {
+      const c = confColor(w.confidence);
+      const dot = w.status === 'failed' ? '#f0455a' : w.status === 'forming' ? '#f5a623' : '#12c48b';
+      return `<div class="scan-row" data-t="${w.symbol}">
+        <div>
+          <div class="scan-sym" style="display:flex;align-items:center;gap:6px">
+            <span style="width:5px;height:5px;border-radius:50%;background:${dot};flex:0 0 auto"></span>${w.symbol}
+          </div>
+          <div class="scan-meta"><span>${STATUS_AR[w.status]}</span><span>·</span><span>${w.bars} شمعة</span><span>·</span><span>R:R ${w.targets[2].rr.toFixed(1)}</span></div>
+        </div>
+        <div class="conf-bar"><i style="width:${w.confidence}%;background:${c}"></i></div>
+        <div class="conf-num" style="color:${c}">${w.confidence.toFixed(0)}</div>
+      </div>`;
+    }).join('');
+    $$('#scanner .scan-row').forEach(el => el.onclick = () => setSymbol(el.dataset.t));
+  }
+
+  function runScan(tf) {
+    if (state.scans.has(tf)) return Promise.resolve(state.scans.get(tf));
+    $('#scanSpin').style.display = 'inline-block';
+    return new Promise(res => setTimeout(() => {
+      const r = Wedge.scan(M.SYMBOLS, tf);
+      state.scans.set(tf, r);
+      $('#scanSpin').style.display = 'none';
+      res(r);
+    }, 20));
+  }
+
+  /* =============================== التحميل ================================ */
+  function load() {
+    const bars = M.series(state.symbol, state.tf);
+    chart.setWedge(null);          // قبل تغيير البيانات (فهارس الوتد تخصّ المصفوفة القديمة)
+    chart.setData(bars, state.tf, state.symbol);
+
+    // ربط الأخبار بالشموع
+    state.news = M.alerts
+      .filter(a => a.t === state.symbol)
+      .map(a => {
+        const t = new Date(a.ts).getTime();
+        let best = -1, bd = Infinity;
+        for (let i = 0; i < bars.length; i++) {
+          const d = Math.abs(bars[i].time - t);
+          if (d < bd) { bd = d; best = i; }
+        }
+        return { idx: best, title: a.title };
+      });
+    chart.setNews(state.news);
+
+    state.wedgeKey = key();
+    let ds = [];
+    try { ds = JSON.parse(localStorage.getItem('fx.draw.' + state.wedgeKey) || '[]'); } catch (e) { ds = []; }
+    chart.setDrawings(ds);
+
+    const w = Wedge.detect(bars);
+    state.wedge = w;
+    if (w) { w.symbol = state.symbol; w.timeframe = state.tf; }
+    chart.setWedge(w);
+
+    renderSymHead();
+    renderSignal();
+    updateStatusbar(bars);
+    $('#sbRange').textContent = `${fmtP(Math.min(...bars.map(b => b.l)))} – ${fmtP(Math.max(...bars.map(b => b.h)))}`;
+  }
+
+  function updateStatusbar(bars) {
+    $('#sbBars').textContent = bars.length;
+  }
+
+  function setSymbol(t) {
+    if (!M.SYMBOLS.includes(t)) return;
+    state.symbol = t;
+    load();
+    renderWatchlist();
+  }
+
+  function setTf(tf) {
+    state.tf = tf;
+    $$('#tfSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === tf));
+    load();
+    $('#scanSpin').style.display = 'inline-block';
+    runScan(tf).then(() => { $('#scanSpin').style.display = 'none'; renderScanner(); renderWatchlist(); });
+  }
+
+  /* =========================== الإطار الزمني ============================== */
+  function buildTfSeg() {
+    $('#tfSeg').innerHTML = M.TIMEFRAMES.map(tf =>
+      `<button data-v="${tf}" class="${tf === state.tf ? 'on' : ''}">${tf}</button>`).join('');
+    $$('#tfSeg button').forEach(b => b.onclick = () => setTf(b.dataset.v));
+  }
+
+  /* =============================== البحث ================================= */
+  function buildSearch() {
+    const inp = $('#searchInput'), res = $('#searchResults');
+    const run = () => {
+      const q = inp.value.trim().toUpperCase();
+      const list = M.SYMBOLS
+        .filter(t => !q || t.includes(q) || M.META[t].name.toUpperCase().includes(q) || M.META[t].sector.toUpperCase().includes(q))
+        .slice(0, 8);
+      if (!list.length) { res.classList.remove('open'); return; }
+      res.innerHTML = list.map(t => {
+        const qq = M.quote(t);
+        return `<div class="sr-item" data-t="${t}"><div><div class="t">${t}</div><div class="n">${qq.name}</div></div>
+          <div class="num ${qq.chg >= 0 ? 'up' : 'down'}" style="font-size:11px">${fmtP(qq.price)}</div></div>`;
+      }).join('');
+      res.classList.add('open');
+      $$('#searchResults .sr-item').forEach(el => el.onclick = () => { setSymbol(el.dataset.t); res.classList.remove('open'); inp.value = ''; inp.blur(); });
+    };
+    inp.oninput = run;
+    inp.onfocus = run;
+    inp.onkeydown = e => { if (e.key === 'Enter') { const f = res.querySelector('.sr-item'); if (f) f.click(); } if (e.key === 'Escape') { inp.blur(); res.classList.remove('open'); } };
+    document.addEventListener('click', e => { if (!$('#searchBox').contains(e.target)) res.classList.remove('open'); });
+  }
+
+  /* ============================ لوحة الأوامر ============================= */
+  const COMMANDS = [
+    { ic: '⇅', tx: 'إعادة ضبط الشارت', hint: '0', run: () => chart.reset() },
+    { ic: '✎', tx: 'أداة: خط اتجاه', hint: 'T', run: () => pickTool('trendline') },
+    { ic: '↔', tx: 'أداة: خط أفقي', hint: 'H', run: () => pickTool('hline') },
+    { ic: 'φ', tx: 'أداة: فيبوناتشي', hint: 'F', run: () => pickTool('fib') },
+    { ic: '▭', tx: 'أداة: منطقة', hint: 'E', run: () => pickTool('rect') },
+    { ic: '↕', tx: 'أداة: قياس', hint: 'M', run: () => pickTool('measure') },
+    { ic: '∿', tx: 'تبديل EMA', run: () => $('#tEma').click() },
+    { ic: '▤', tx: 'تبديل الحجم', run: () => $('#tVol').click() },
+    { ic: '≋', tx: 'تبديل RSI', run: () => $('#tRsi').click() },
+    { ic: '▽', tx: 'تبديل طبقة الوتد', run: () => $('#tWedge').click() },
+    { ic: '㏒', tx: 'تبديل المقياس اللوغاريتمي', run: () => $('#tLog').click() },
+    { ic: '⌫', tx: 'مسح كل الرسومات', run: () => $('#tClear').click() },
+    { ic: '⟳', tx: 'إعادة فحص كل الرموز', hint: 'R', run: () => rescan() },
+    { ic: '⤓', tx: 'تصدير الشارت PNG', run: () => exportPNG() },
+    { ic: '?', tx: 'عرض الاختصارات', run: () => showHelp() }
+  ];
+
+  function buildCmdk() {
+    const box = $('#cmdk'), inp = $('#cmdkInput'), list = $('#cmdkList');
+    let sel = 0, items = [];
+
+    const render = () => {
+      const q = inp.value.trim().toUpperCase();
+      const cmds = COMMANDS.filter(c => !q || c.tx.includes(inp.value.trim()));
+      const syms = M.SYMBOLS.filter(t => !q || t.includes(q)).map(t => ({
+        ic: '◆', tx: t + ' — ' + M.META[t].name, hint: 'رمز', run: () => setSymbol(t)
+      }));
+      items = [...syms.slice(0, 6), ...cmds];
+      if (!items.length) { list.innerHTML = '<div class="empty">لا نتائج</div>'; return; }
+      sel = Math.min(sel, items.length - 1);
+      list.innerHTML = items.map((c, i) =>
+        `<div class="cmdk-item ${i === sel ? 'sel' : ''}" data-i="${i}">
+          <span class="ic">${c.ic}</span><span class="tx">${c.tx}</span><span class="hint">${c.hint || ''}</span></div>`).join('');
+      $$('#cmdkList .cmdk-item').forEach(el => el.onclick = () => { close(); items[+el.dataset.i].run(); });
+    };
+
+    const open = () => { box.classList.add('open'); inp.value = ''; sel = 0; render(); setTimeout(() => inp.focus(), 10); };
+    const close = () => box.classList.remove('open');
+
+    inp.oninput = () => { sel = 0; render(); };
+    inp.onkeydown = e => {
+      if (e.key === 'ArrowDown') { sel = Math.min(items.length - 1, sel + 1); render(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); render(); e.preventDefault(); }
+      else if (e.key === 'Enter') { if (items[sel]) { close(); items[sel].run(); } }
+      else if (e.key === 'Escape') close();
+    };
+    box.onclick = e => { if (e.target === box) close(); };
+    window.__cmdk = { open, close };
+  }
+
+  function showHelp() {
+    toast('اختصارات لوحة المفاتيح',
+      '/ بحث · Ctrl+K أوامر · T/H/F/E/M/M أدوات رسم · 0 إعادة ضبط · R فحص · ↑↓ تنقّل بين الرموز');
+  }
+
+  function pickTool(t) {
+    chart.setTool(t);
+    $$('.tbtn[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
+    const names = { trendline: 'خط اتجاه', ray: 'شعاع', hline: 'خط أفقي', fib: 'فيبوناتشي', rect: 'منطقة', measure: 'قياس' };
+    $('#sbTool').innerHTML = 'الوضع: <b>' + (names[t] || 'مؤشر') + '</b>';
+    if (t !== 'cursor') toast('أداة الرسم: ' + names[t], 'اسحب على الشارت لتحديد الشكل — Esc للإلغاء');
+  }
+
+  function rescan() {
+    state.scans.clear();
+    $('#scanSpin').style.display = 'inline-block';
+    runScan(state.tf).then(() => { $('#scanSpin').style.display = 'none'; renderScanner(); renderWatchlist(); toast('تمّ الفحص', state.scans.get(state.tf).length + ' وتد على إطار ' + state.tf, 'ok'); });
+  }
+
+  function exportPNG() {
+    const a = document.createElement('a');
+    a.href = chart.toPNG();
+    a.download = `${state.symbol}_${state.tf}_falling-wedge.png`;
+    a.click();
+    toast('تمّ التصدير', a.download, 'ok');
+  }
+
+  /* ============================ الأدوات والأزرار ========================== */
+  function bindTools() {
+    $$('.tbtn[data-tool]').forEach(b => b.onclick = () => pickTool(b.dataset.tool));
+    $('#tClear').onclick = () => {
+      chart.setDrawings([]);
+      localStorage.removeItem('fx.draw.' + state.wedgeKey);
+      toast('تمّ مسح الرسومات');
+    };
+    $('#tReset').onclick = () => chart.reset();
+    const toggle = (id, fn) => {
+      const el = $(id);
+      el.onclick = () => { el.classList.toggle('on'); fn(el.classList.contains('on')); };
+    };
+    toggle('#tEma', v => { chart.o.showEma = v; chart.requestDraw(); });
+    toggle('#tVol', v => { chart.o.showVolume = v; chart.requestDraw(); });
+    toggle('#tRsi', v => { chart.o.showRsi = v; chart.requestDraw(); });
+    toggle('#tWedge', v => { chart.setWedge(v ? state.wedge : null); });
+    toggle('#tLog', v => { chart.o.log = v; chart.requestDraw(); });
+    chart.o.showEma = $('#tEma').classList.contains('on');
+
+    $$('#chartType button').forEach(b => b.onclick = () => {
+      $$('#chartType button').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      state.chartType = b.dataset.v;
+      chart.chartType = state.chartType;
+      chart.requestDraw();
+    });
+
+    $('#btnScan').onclick = rescan;
+    $('#btnShot').onclick = exportPNG;
+    $('#btnHelp').onclick = showHelp;
+    if ($('#btnDl')) $('#btnDl').onclick = () => {
+      const a = document.createElement('a');
+      a.href = 'download'; a.download = 'stok-terminal.html';
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+  }
+
+  /* ============================== الاختصارات ============================= */
+  function bindKeys() {
+    document.addEventListener('keydown', e => {
+      const typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); window.__cmdk.open(); return; }
+      if (typing) {
+        if (e.key === 'Escape') document.activeElement.blur();
+        return;
+      }
+      if (e.key === '/') { e.preventDefault(); $('#searchInput').focus(); return; }
+      if (e.key === '?') { showHelp(); return; }
+      const k = e.key.toLowerCase();
+      const map = { t: 'trendline', y: 'ray', h: 'hline', f: 'fib', e: 'rect', m: 'measure' };
+      if (map[k]) { pickTool(map[k]); return; }
+      if (k === 'escape') { pickTool('cursor'); $$('.tbtn[data-tool]').forEach(b => b.classList.remove('on')); $('#sbTool').innerHTML = 'الوضع: <b>مؤشر</b>'; return; }
+      if (k === '0') { chart.reset(); return; }
+      if (k === 'r') { rescan(); return; }
+      if (k === 'l') { $('#tLog').click(); return; }
+      if (k === 'v') { $('#tVol').click(); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const i = M.SYMBOLS.indexOf(state.symbol);
+        const n = (i + (e.key === 'ArrowDown' ? 1 : M.SYMBOLS.length - 1)) % M.SYMBOLS.length;
+        setSymbol(M.SYMBOLS[n]);
+      }
+    });
+  }
+
+  /* ========================== الساعة وحالة السوق ========================== */
+  function tickClock() {
+    const now = new Date();
+    const fmt = (tz, o) => new Intl.DateTimeFormat('en-GB', Object.assign({ timeZone: tz, hour12: false }, o)).format(now);
+    $('#clock').innerHTML =
+      `<b>${fmt('Asia/Riyadh', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</b> <span>الرياض</span><br>` +
+      `<b>${fmt('America/New_York', { hour: '2-digit', minute: '2-digit' })}</b> <span>نيويورك · ${fmt('America/New_York', { weekday: 'short' })}</span>`;
+
+    const ny = new Date(fmt('America/New_York', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ''));
+    const parts = fmt('America/New_York', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short' });
+    const m = parts.match(/(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2})/);
+    const wd = now.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short' });
+    let open = false, label = 'مغلق';
+    if (m) {
+      const mins = (+m[4]) * 60 + (+m[5]);
+      const isWeekday = !['Sat', 'Sun'].includes(wd);
+      if (isWeekday && mins >= 570 && mins < 960) { open = true; label = 'السوق مفتوح'; }
+      else if (isWeekday && mins >= 240 && mins < 570) label = 'ما قبل الافتتاح';
+      else if (isWeekday && mins >= 960 && mins < 1200) label = 'ما بعد الإغلاق';
+      else label = ['Sat', 'Sun'].includes(wd) ? 'عطلة أسبوعية' : 'مغلق';
+    }
+    $('#mktDot').className = 'pulse' + (open ? '' : ' off');
+    $('#mktText').textContent = label;
+  }
+
+  /* =============================== الإقلاع =============================== */
+  /** يفضّل `/api/alerts` (يقرأ logs/alerts_log.csv مباشرة)، ويرجع للمدمج عند الفشل */
+  function loadLiveAlerts() {
+    if (typeof fetch !== 'function') {
+      $('#sbSource').innerHTML = 'الأسعار: محاكاة أوفلاين · الأخبار: مدمجة <b>' + M.alerts.length + ' تنبيه</b>';
+      return Promise.resolve();
+    }
+    return fetch('api/alerts', { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(d => {
+        if (!d || !Array.isArray(d.alerts) || !d.alerts.length) throw new Error('empty');
+        M.alerts.length = 0;
+        Array.prototype.push.apply(M.alerts, d.alerts);
+        renderNews();
+        load();
+        $('#sbSource').innerHTML = 'الأسعار: محاكاة أوفلاين · الأخبار: API محلي (CSV)';
+      })
+      .catch(() => { $('#sbSource').innerHTML = 'الأسعار: محاكاة أوفلاين · الأخبار: CSV <b>' + M.alerts.length + ' تنبيه</b>'; });
+  }
+
+  /* --------------------- استراتيجية التجزئة العكسية --------------------- */
+  function renderSplitBody(box) {
+    $('#sigTitle').textContent = 'التجزئة العكسية — ارتداد القاع';
+    const bars = M.series(state.symbol, state.tf);
+    const m = { date: ($('#splitDate') && $('#splitDate').value) || '', float: ($('#splitFloat') && $('#splitFloat').value) || '' };
+    const r = Split.analyze(bars, m);
+    const badge = $('#chartBadge');
+    badge.className = 'chart-badge' + (r.cls === 'go' ? ' brk' : '');
+    badge.textContent = 'REVERSE SPLIT · ' + r.score + '% · ' + r.st;
+    badge.style.display = 'flex';
+    const fx = n => (n == null || isNaN(n)) ? '—' : (+n).toFixed(n < 1 ? 4 : 2);
+    const rows = r.k.map(q => '<div class="ck-row ' + (q.ok ? 'ok' : 'bad') + '"><span>' + q.l + '</span><b>' + q.v + '</b></div>').join('');
+    const info = r.info.map(x => '<div class="ck-row"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>').join('');
+    box.innerHTML =
+      '<div class="ck-row ' + (r.ready ? 'ok' : 'bad') + '"><span>النتيجة / الحالة</span><b>' + r.score + '% · ' + r.st + '</b></div>' +
+      rows +
+      '<h3 style="margin:10px 0 6px;font-size:12px">خطة التداول</h3>' +
+      '<div class="ck-row"><span>دخول</span><b>' + fx(r.plan.en) + '</b></div>' +
+      '<div class="ck-row bad"><span>وقف الخسارة</span><b>' + fx(r.plan.sl) + '</b></div>' +
+      r.plan.tp.map((t, i) => '<div class="ck-row ok"><span>هدف ' + (i + 1) + '</span><b>' + fx(t) + '</b></div>').join('') +
+      '<div class="ck-row"><span>R:R (هدف 2)</span><b>' + (isFinite(r.plan.rr) ? r.plan.rr.toFixed(2) : '—') + '</b></div>' +
+      '<h3 style="margin:10px 0 6px;font-size:12px">بيانات إضافية</h3>' + info;
+  }
+
+  function initStrategy() {
+    $$('#stratSeg button').forEach(b => b.onclick = () => {
+      $$('#stratSeg button').forEach(x => x.classList.toggle('on', x === b));
+      state.strategy = b.dataset.st;
+      $('#splitMeta').hidden = state.strategy !== 'split';
+      renderSignal();
+    });
+    const re = () => { if (state.strategy === 'split') renderSignal(); };
+    $('#splitDate').onchange = re;
+    $('#splitFloat').oninput = re;
+  }
+
+  /* -------------------- مصدر البيانات (ربط احتياطي آمن) --------------------
+     ملاحظة: يستخدم «فتح دائمًا / إغلاق دائمًا» بدل التبديل حتى لا يتعارض مع
+     السكربت المضمّن المستقل في index.html عند تشغيلهما معًا في المتصفح. */
+  function initSource() {
+    const show = v => { const p = $('#setPanel'); p.hidden = !v; p.style.display = v ? 'flex' : 'none'; };
+    const fill = () => {
+      $('#ak').value = localStorage.getItem('twelve_data_api_key') || '';
+      $('#px').value = localStorage.getItem('twelve_data_proxy') || '';
+      $('#rk').value = localStorage.getItem('risk_usd') || 50;
+    };
+    if ($('#tSet')) $('#tSet').onclick = () => { show(true); fill(); };
+    ['#setClose', '#setCloseTop'].forEach(id => { const b = $(id); if (b) b.onclick = () => show(false); });
+    if ($('#setSave')) $('#setSave').onclick = () => {
+      localStorage.setItem('twelve_data_api_key', $('#ak').value.trim());
+      localStorage.setItem('twelve_data_proxy', $('#px').value.trim());
+      localStorage.setItem('risk_usd', $('#rk').value || 50);
+      show(false);
+      toast('تم حفظ مصدر البيانات', $('#ak').value.trim() ? 'Twelve Data (حيّ في متصفّحك)' : 'محاكاة أوفلاين', 'ok');
+    };
+  }
+
+  /* --------------------- إضافة الأسهم + جلب TradingView ------------------ */
+  const TV_PRESET = {
+    wedge: ['SOUN', 'BB', 'PLTR', 'MARA', 'RIOT', 'AMD', 'NVDA', 'TSLA'],
+    split: ['MULN', 'BBBY', 'CVNA', 'UPST', 'PLUG', 'F', 'GE']
+  };
+
+  function rebuildUniverse() {
+    renderWatchlist(); renderTape();
+    return runScan(state.tf).then(() => { renderScanner(); });
+  }
+
+  function initAdd() {
+    const doAdd = () => {
+      const t = ($('#addSym').value || '').trim().toUpperCase();
+      if (!t) return;
+      M.ensureSymbol(t);
+      $('#addSym').value = '';
+      rebuildUniverse().then(() => setSymbol(t));
+      toast('أُضيف الرمز', t + ' — بيانات حتمية (محاكاة)', 'ok');
+    };
+    $('#addSymBtn').onclick = doAdd;
+    $('#addSym').onkeydown = e => { if (e.key === 'Enter') doAdd(); };
+    $('#fetchTV').onclick = fetchTV;
+  }
+
+  function fetchTV() {
+    const sys = state.strategy === 'split' ? 'split' : 'wedge';
+    $('#scanSpin').style.display = 'inline-block';
+    const done = (list, live) => {
+      list.forEach(t => M.ensureSymbol(t));
+      rebuildUniverse().then(() => { $('#scanSpin').style.display = 'none'; });
+      toast(live ? 'جلب حيّ من TradingView' : 'قائمة افتراضية للنظام',
+        list.length + ' رمزًا لنظام ' + (sys === 'split' ? 'التجزئة العكسية' : 'التقلبات العالية'), live ? 'ok' : 'warn');
+    };
+    const fallback = why => done(TV_PRESET[sys], false);
+    try {
+      const body = sys === 'wedge'
+        ? { columns: ['name', 'close', 'Volatility.D'], range: [0, 20],
+            options: { sort: { sortBy: 'Volatility.D', sortOrder: 'desc' } },
+            filter: [{ left: 'exchange', operation: 'inRange', right: ['NASDAQ', 'NYSE'] }, { left: 'close', operation: 'greater', right: 1 }] }
+        : { columns: ['name', 'close', 'Volatility.D'], range: [0, 20],
+            options: { sort: { sortBy: 'Volatility.D', sortOrder: 'desc' } },
+            filter: [{ left: 'close', operation: 'smaller', right: 10 }, { left: 'Volatility.D', operation: 'greater', right: 3 }] };
+      fetch('https://scanner.tradingview.com/america/scan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(j => {
+          const list = (j.data || []).map(d => String(d.s || '').split(':')[1]).filter(Boolean);
+          if (!list.length) throw new Error('empty');
+          $('#scanSpin').style.display = 'none';
+          done(list, true);
+        })
+        .catch(e => { $('#scanSpin').style.display = 'none'; fallback(e.message); });
+    } catch (e) { $('#scanSpin').style.display = 'none'; fallback(e.message); }
+  }
+
+  function boot() {
+    buildTfSeg();
+    buildSearch();
+    buildCmdk();
+    bindTools();
+    bindKeys();
+    initStrategy();
+    initSource();
+    initAdd();
+    renderTape();
+    renderWatchlist();
+    renderNews();
+    load();
+    loadLiveAlerts();
+    tickClock();
+    setInterval(tickClock, 1000);
+    $('#scanSpin').style.display = 'inline-block';
+    runScan(state.tf).then(() => { $('#scanSpin').style.display = 'none'; renderScanner(); });
+    setTimeout(() => toast('STOK Terminal جاهز', '١٦ رمزًا · استراتيجية الوتد الهابط · رسم يدوي كامل', 'ok'), 500);
+  }
+
+  document.addEventListener('DOMContentLoaded', boot);
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+
+# ---- STOK Terminal (أدوات تحقق محلية) ----
+terminal/tests/*.png
+terminal/tests/*.svg
+__pycache__/
+*.pyc
